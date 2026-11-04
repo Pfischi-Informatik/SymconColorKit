@@ -26,6 +26,7 @@ class ColorKitDashboard extends IPSModule
         ['Key' => 'hp_flow', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
         ['Key' => 'room_temp', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
         ['Key' => 'outdoor_temp', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+        ['Key' => 'battery_soc', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
     ];
 
     private const DEFAULT_BUTTONS = [

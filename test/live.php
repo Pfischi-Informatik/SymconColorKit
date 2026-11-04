@@ -81,7 +81,7 @@ $vars = [
 
 $m = new ColorKitDashboard();
 $m->Create();
-assert(count(json_decode($m->props['Tiles'], true)) === 8 && count(json_decode($m->props['Buttons'], true)) === 3);
+assert(count(json_decode($m->props['Tiles'], true)) === 9 && count(json_decode($m->props['Buttons'], true)) === 3);
 
 $m->props['Tiles'] = json_encode([
     ['Key' => 'a', 'VariableID' => 1, 'Factor' => 0.001, 'Formatted' => false],

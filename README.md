@@ -21,6 +21,7 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 | `colorkit/state/<key>` | Symcon -> Display | Kachelwert (Zahl als Text, z.B. `3.42`, oder Text), Button-Zustand `0`/`1`. Retain = true |
 | `colorkit/cmd/<key>` | Display -> Symcon | Button getippt, Payload `1` |
 | `colorkit/status` | Display -> Symcon | `online`/`offline` (retained, LWT). Bei `online` sendet Symcon sofort alle Werte |
+| `colorkit/diag` | Display -> Symcon | WLAN-Diagnose nach jedem Verbinden (retained), steht im Debug-Fenster unter RX |
 
 ## Konfiguration
 
@@ -35,7 +36,7 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 - **Buttons**: Key, Variable, Skript. Eine Bool-Variable wird beim Tippen umgeschaltet (per `RequestAction`, wenn sie eine
   Aktion hat, sonst `SetValue`). Ein Skript wird danach mit `$_IPS['KEY']`, `$_IPS['VALUE']` und `$_IPS['SENDER']` = `ColorKit` gestartet.
 
-Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.
+`battery_soc` (Akku in %) erscheint in der Kopfzeile des Displays. Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.
 
 **Umlaute:** Die Display-Schrift (LVGL Montserrat) hat keine Umlaute. Fuer formatierte Kacheln daher Profiltexte ohne
 Umlaute verwenden, also `Kuehlen` statt `Kühlen`.
