@@ -42,7 +42,7 @@ Neue Property `Pages` (Liste, Spalte Name, hoechstens 5). Vorbelegung: `Start`.
 | Page | Seitenname (Auswahl als Textfeld) | `Start` |
 | Title | Titel auf der Kachel | Standardwert je Key, sonst der Key |
 | Unit | Einheit | Standardwert je Key, sonst leer |
-| Decimals | Nachkommastellen, -1 = Text unveraendert | Standardwert je Key, sonst -1 |
+| Decimals | Nachkommastellen, -1 = Text unveraendert, leer = Standardwert | Standardwert je Key, sonst -1 |
 | Colors | Farbregeln, z.B. `Standby=orange;Aus=rot;Ein=gruen` | Standardwert je Key, sonst leer |
 
 `Buttons` bekommt zusaetzlich Page und Label (fehlt: `Start` bzw. Standardwert je Key, sonst der Key).
@@ -97,7 +97,7 @@ Neu, beide retained, Modul an Display:
 ]
 ```
 
-- Das Modul sendet `pages` und alle `layout/<n>` in `ApplyChanges` und bei `status = online`, vor den Werten.
+- Das Modul sendet `pages` und alle `layout/<n>` in `ApplyChanges`, bei `status = online` und beim Timer (`PublishAll`), vor den Werten.
 - Fuer nicht genutzte Seiten bis Index 4 sendet es ein leeres retained Payload, damit alte Seiten vom Server verschwinden.
 - Eine Beschreibung darf hoechstens 4096 Byte lang sein. Das Modul prueft das und sendet groessere nicht, Debug-Eintrag.
 

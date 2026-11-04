@@ -3,7 +3,7 @@
         {
             "type": "ValidationTextBox",
             "name": "BaseTopic",
-            "caption": "Basis-Topic",
+            "caption": "Basis-Topic (muss zur Firmware passen)",
             "validate": "^[^#+]+$"
         },
         {
@@ -20,7 +20,7 @@
                 {
                     "type": "List",
                     "name": "Pages",
-                    "caption": "Seiten in Reihenfolge (hoechstens 5)",
+                    "caption": "Seiten in Reihenfolge (hoechstens 5, Name etwa bis 10 Zeichen, ohne Umlaute)",
                     "rowCount": 5,
                     "add": true,
                     "delete": true,
@@ -47,7 +47,7 @@
                         { "name": "Page", "caption": "Seite", "width": "110px", "add": "Start", "edit": { "type": "ValidationTextBox" } },
                         { "name": "Title", "caption": "Titel", "width": "110px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "Unit", "caption": "Einheit", "width": "70px", "add": "", "edit": { "type": "ValidationTextBox" } },
-                        { "name": "Decimals", "caption": "Stellen", "width": "70px", "add": -1, "edit": { "type": "NumberSpinner", "minimum": -1, "maximum": 6 } },
+                        { "name": "Decimals", "caption": "Stellen", "width": "70px", "add": "", "edit": { "type": "ValidationTextBox", "validate": "^(-1|[0-6])?$" } },
                         { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
                         { "name": "Factor", "caption": "Faktor", "width": "120px", "add": 1, "edit": { "type": "NumberSpinner", "digits": 4 } },
                         { "name": "Formatted", "caption": "Formatiert", "width": "100px", "add": false, "edit": { "type": "CheckBox" } },

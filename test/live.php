@@ -281,6 +281,19 @@ assert($sent[2][1] === '[{"t":"tile","k":"wb","l":"Wallbox","u":"kW","d":2,"c":[
 assert($sent[3] === ['colorkit/layout/2', '']);
 assert(in_array('colorkit/state/weg', array_column($sent, 0), true));
 
+// Decimals leer = Standardwert, 0 = null Stellen; Seitenname mit Leerzeichen wird getrimmt
+$p->props['Pages'] = json_encode([['Name' => 'Start'], ['Name' => 'Energie']]);
+$p->props['Tiles'] = json_encode([
+    ['Key' => 'wallbox_power', 'VariableID' => 1, 'Factor' => 1, 'Page' => 'Energie ', 'Decimals' => ''],
+    ['Key' => 'pv_power', 'VariableID' => 1, 'Factor' => 1, 'Decimals' => 0],
+]);
+$p->props['Buttons'] = '[]';
+$p->PublishAll();
+$sent = layouts($p);
+$p->sent = [];
+assert(str_contains($sent[2][1], '"k":"wallbox_power","l":"Wallbox","u":"kW","d":2'), $sent[2][1]);
+assert(str_contains($sent[1][1], '"k":"pv_power","l":"PV","u":"W","d":0'), $sent[1][1]);
+
 // Grenzen: 5 Seiten, 12 Eintraege, Werte der ueberzaehligen Zeilen laufen weiter
 $p->props['Pages'] = json_encode(array_map(fn ($i) => ['Name' => "S$i"], range(1, 7)));
 $p->props['Tiles'] = json_encode(array_map(fn ($i) => ['Key' => "k$i", 'VariableID' => 1, 'Factor' => 1, 'Page' => 'S1'], range(1, 14)));

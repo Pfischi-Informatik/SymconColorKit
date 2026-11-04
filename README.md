@@ -29,13 +29,13 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 
 - **Basis-Topic**: Standard `colorkit`.
 - **Alles neu senden alle**: Sekunden, Standard 300, 0 = aus.
-- **Kacheln**: Key, Variable, Faktor, Formatiert. Formatiert sendet den Text aus dem Variablenprofil.
+- **Kacheln**: Key, Seite, Titel, Einheit, Stellen, Farben, Variable, Faktor, Formatiert. Formatiert sendet den Text aus dem Variablenprofil.
   Sonst: Bool als `1`/`0`, Zahl als `Wert * Faktor` (auf 4 Stellen gerundet), Text unveraendert.
 - **Mehrere Variablen pro Kachel** (z.B. zwei Wallboxen): denselben Key in mehreren Zeilen eintragen. Jede Zeile hat ihren
   eigenen Faktor, das Ergebnis wird danach berechnet. Die Spalte **Berechnung** gilt aus der ersten Zeile des Keys:
   Summe, Differenz (erste Zeile minus alle weiteren), Mittelwert, Minimum, Maximum. Formatiert wird dabei ignoriert,
   Variablen ohne Zahlenwert werden uebersprungen.
-- **Buttons**: Key, Variable, Skript. Eine Bool-Variable wird beim Tippen umgeschaltet (per `RequestAction`, wenn sie eine
+- **Buttons**: Key, Seite, Beschriftung, Variable, Skript. Eine Bool-Variable wird beim Tippen umgeschaltet (per `RequestAction`, wenn sie eine
   Aktion hat, sonst `SetValue`). Ein Skript wird danach mit `$_IPS['KEY']`, `$_IPS['VALUE']` und `$_IPS['SENDER']` = `ColorKit` gestartet.
 
 - **Seiten**: Bis zu 5 Seiten mit je 12 Plaetzen. Die Plaetze fuellen sich in Reihenfolge der Listen, zuerst Kacheln, dann Buttons.
@@ -46,7 +46,8 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.
 
 **Umlaute:** Die Display-Schrift (LVGL Montserrat) hat keine Umlaute. Fuer formatierte Kacheln daher Profiltexte ohne
-Umlaute verwenden, also `Kuehlen` statt `Kühlen`.
+Umlaute verwenden, also `Kuehlen` statt `Kühlen`. Das gilt auch fuer Titel, Beschriftungen und Seitennamen.
+Seitennamen hoechstens etwa 10 Zeichen, sonst passen 5 Reiter nicht in die Leiste.
 
 ## Funktionen
 

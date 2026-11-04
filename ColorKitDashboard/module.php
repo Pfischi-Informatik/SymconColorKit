@@ -186,12 +186,13 @@ class ColorKitDashboard extends IPSModule
             $key = (string) $key;
             $row = $group[0];
             $default = self::TILE_DEFAULTS[$key] ?? [$key, '', -1, ''];
+            $decimals = (string) ($row['Decimals'] ?? '');
             $item = [
                 't' => 'tile',
                 'k' => $key,
                 'l' => ($row['Title'] ?? '') ?: $default[0],
                 'u' => ($row['Unit'] ?? '') ?: $default[1],
-                'd' => (int) ($row['Decimals'] ?? $default[2]),
+                'd' => $decimals === '' ? $default[2] : (int) $decimals,
             ];
             $colors = $this->parseColors(($row['Colors'] ?? '') ?: $default[3]);
             if (count($colors) > 0) {
@@ -210,7 +211,7 @@ class ColorKitDashboard extends IPSModule
 
     private function addItem(array &$layouts, array $pages, array $row, array $item): void
     {
-        $name = $row['Page'] ?? 'Start';
+        $name = trim((string) ($row['Page'] ?? 'Start'));
         $index = array_search($name, $pages, true);
         if ($index === false) {
             $index = 0;
