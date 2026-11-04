@@ -28,6 +28,10 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 - **Alles neu senden alle**: Sekunden, Standard 300, 0 = aus.
 - **Kacheln**: Key, Variable, Faktor, Formatiert. Formatiert sendet den Text aus dem Variablenprofil.
   Sonst: Bool als `1`/`0`, Zahl als `Wert * Faktor` (auf 4 Stellen gerundet), Text unveraendert.
+- **Mehrere Variablen pro Kachel** (z.B. zwei Wallboxen): denselben Key in mehreren Zeilen eintragen. Jede Zeile hat ihren
+  eigenen Faktor, das Ergebnis wird danach berechnet. Die Spalte **Berechnung** gilt aus der ersten Zeile des Keys:
+  Summe, Differenz (erste Zeile minus alle weiteren), Mittelwert, Minimum, Maximum. Formatiert wird dabei ignoriert,
+  Variablen ohne Zahlenwert werden uebersprungen.
 - **Buttons**: Key, Variable, Skript. Eine Bool-Variable wird beim Tippen umgeschaltet (per `RequestAction`, wenn sie eine
   Aktion hat, sonst `SetValue`). Ein Skript wird danach mit `$_IPS['KEY']`, `$_IPS['VALUE']` und `$_IPS['SENDER']` = `ColorKit` gestartet.
 

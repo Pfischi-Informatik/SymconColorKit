@@ -125,6 +125,38 @@ $vars[2][0] = -0.00001;
 $m->MessageSink(0, 2, VM_UPDATE, []);
 assert(state($m) === ['colorkit/state/b' => '0']);
 
+// Mehrere Variablen pro Key, Faktor je Zeile, Berechnung aus der ersten Zeile
+$saved = [$m->props['Tiles'], $vars];
+$vars[1][0] = 1000; $vars[2][0] = 500.0; $vars[4][0] = true;
+$combo = function (string $op) use ($m): void {
+    $m->props['Tiles'] = json_encode([
+        ['Key' => 'wb', 'VariableID' => 1, 'Factor' => 0.001, 'Formatted' => true, 'Operation' => $op],
+        ['Key' => 'wb', 'VariableID' => 2, 'Factor' => 0.001, 'Formatted' => false, 'Operation' => 'Maximum'],
+        ['Key' => 'wb', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+    ]);
+    $m->MessageSink(0, 2, VM_UPDATE, []);
+};
+foreach (['Summe' => '1.5', 'Differenz' => '0.5', 'Mittelwert' => '0.75', 'Minimum' => '0.5', 'Maximum' => '1'] as $op => $expected) {
+    $combo($op);
+    assert(state($m) === ['colorkit/state/wb' => $expected], $op);
+}
+// Differenz mit drei Variablen, Bool zaehlt als 0/1, Text wird uebersprungen, ohne Operation = Summe
+$m->props['Tiles'] = json_encode([
+    ['Key' => 'x', 'VariableID' => 1, 'Factor' => 1, 'Operation' => 'Differenz'],
+    ['Key' => 'x', 'VariableID' => 2, 'Factor' => 1],
+    ['Key' => 'x', 'VariableID' => 4, 'Factor' => 1],
+    ['Key' => 'x', 'VariableID' => 5, 'Factor' => 1],
+    ['Key' => 'y', 'VariableID' => 1, 'Factor' => 1],
+    ['Key' => 'y', 'VariableID' => 2, 'Factor' => 1],
+]);
+$m->MessageSink(0, 1, VM_UPDATE, []);
+assert(state($m) === ['colorkit/state/x' => '499', 'colorkit/state/y' => '1500']);
+// Nur Text: nichts senden
+$m->props['Tiles'] = json_encode([['Key' => 't', 'VariableID' => 5, 'Factor' => 1], ['Key' => 't', 'VariableID' => 5, 'Factor' => 1]]);
+$m->MessageSink(0, 5, VM_UPDATE, []);
+assert(state($m) === []);
+[$m->props['Tiles'], $vars] = $saved;
+
 // Abgeloeste Variable wird beim naechsten ApplyChanges entfernt
 $m->props['Tiles'] = '[]';
 $m->props['Buttons'] = json_encode([['Key' => 'noaction', 'VariableID' => 10, 'ScriptID' => 500]] + json_decode($m->props['Buttons'], true));

@@ -18,14 +18,14 @@ class ColorKitDashboard extends IPSModule
     private const TX = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
 
     private const DEFAULT_TILES = [
-        ['Key' => 'pv_power', 'VariableID' => 0, 'Factor' => 0.001, 'Formatted' => false],
-        ['Key' => 'house_power', 'VariableID' => 0, 'Factor' => 0.001, 'Formatted' => false],
-        ['Key' => 'grid_power', 'VariableID' => 0, 'Factor' => 0.001, 'Formatted' => false],
-        ['Key' => 'wallbox_power', 'VariableID' => 0, 'Factor' => 0.001, 'Formatted' => false],
-        ['Key' => 'hp_mode', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => true],
-        ['Key' => 'hp_flow', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false],
-        ['Key' => 'room_temp', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false],
-        ['Key' => 'outdoor_temp', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false],
+        ['Key' => 'pv_power', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+        ['Key' => 'house_power', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+        ['Key' => 'grid_power', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+        ['Key' => 'wallbox_power', 'VariableID' => 0, 'Factor' => 0.001, 'Formatted' => false, 'Operation' => 'Summe'],
+        ['Key' => 'hp_mode', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => true, 'Operation' => 'Summe'],
+        ['Key' => 'hp_flow', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+        ['Key' => 'room_temp', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+        ['Key' => 'outdoor_temp', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
     ];
 
     private const DEFAULT_BUTTONS = [
@@ -83,9 +83,9 @@ class ColorKitDashboard extends IPSModule
         if ($Message !== VM_UPDATE) {
             return;
         }
-        foreach ($this->rows('Tiles') as $tile) {
-            if ($tile['VariableID'] === $SenderID) {
-                $this->publishTile($tile);
+        foreach ($this->tileGroups() as $key => $group) {
+            if (in_array($SenderID, array_column($group, 'VariableID'), true)) {
+                $this->publishTile($key, $group);
             }
         }
         foreach ($this->rows('Buttons') as $button) {
@@ -116,33 +116,80 @@ class ColorKitDashboard extends IPSModule
 
     public function PublishAll(): void
     {
-        foreach ($this->rows('Tiles') as $tile) {
-            $this->publishTile($tile);
+        foreach ($this->tileGroups() as $key => $group) {
+            $this->publishTile($key, $group);
         }
         foreach ($this->rows('Buttons') as $button) {
             $this->publishButton($button);
         }
     }
 
-    private function publishTile(array $tile): void
+    // Zeilen mit gleichem Key bilden eine Kachel
+    private function tileGroups(): array
     {
-        $id = $tile['VariableID'];
-        if ($tile['Key'] === '' || !IPS_VariableExists($id)) {
+        $groups = [];
+        foreach ($this->rows('Tiles') as $tile) {
+            if ($tile['Key'] !== '') {
+                $groups[$tile['Key']][] = $tile;
+            }
+        }
+        return $groups;
+    }
+
+    private function publishTile(string $key, array $group): void
+    {
+        $operation = $group[0]['Operation'] ?? 'Summe'; // gilt aus der ersten Zeile
+        $tiles = array_values(array_filter($group, fn ($tile) => IPS_VariableExists($tile['VariableID'])));
+        if (count($tiles) === 0) {
             return;
         }
+        if (count($tiles) > 1) {
+            $this->publishCombined($key, $tiles, $operation);
+            return;
+        }
+
+        $tile = $tiles[0];
         if ($tile['Formatted'] ?? false) {
-            $text = GetValueFormatted($id);
+            $text = GetValueFormatted($tile['VariableID']);
         } else {
-            $value = GetValue($id);
+            $value = GetValue($tile['VariableID']);
             if (is_bool($value)) {
                 $text = $value ? '1' : '0';
             } elseif (is_int($value) || is_float($value)) {
-                $text = (string) (round($value * ($tile['Factor'] ?? 1), 4) + 0.0); // + 0.0: kein "-0" auf dem Display
+                $text = $this->number($value * ($tile['Factor'] ?? 1));
             } else {
                 $text = (string) $value;
             }
         }
-        $this->publish($tile['Key'], $text);
+        $this->publish($key, $text);
+    }
+
+    private function publishCombined(string $key, array $tiles, string $operation): void
+    {
+        $values = [];
+        foreach ($tiles as $tile) {
+            $value = GetValue($tile['VariableID']);
+            if (is_bool($value) || is_numeric($value)) {
+                $values[] = (float) $value * ($tile['Factor'] ?? 1);
+            }
+        }
+        if (count($values) === 0) {
+            $this->SendDebug('TX', 'Keine Zahlenwerte fuer ' . $key, 0);
+            return;
+        }
+        $result = match ($operation) {
+            'Differenz'  => 2 * $values[0] - array_sum($values), // erste Zeile minus alle weiteren
+            'Mittelwert' => array_sum($values) / count($values),
+            'Minimum'    => min($values),
+            'Maximum'    => max($values),
+            default      => array_sum($values),
+        };
+        $this->publish($key, $this->number($result));
+    }
+
+    private function number(float|int $value): string
+    {
+        return (string) (round($value, 4) + 0.0); // + 0.0: kein "-0" auf dem Display
     }
 
     private function publishButton(array $button): void

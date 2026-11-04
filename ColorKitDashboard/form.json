@@ -20,7 +20,7 @@
                 {
                     "type": "List",
                     "name": "Tiles",
-                    "caption": "Kacheln (Key muss zur Firmware passen)",
+                    "caption": "Kacheln (Key muss zur Firmware passen. Gleicher Key in mehreren Zeilen = Werte verrechnen, Berechnung gilt aus der ersten Zeile)",
                     "rowCount": 8,
                     "add": true,
                     "delete": true,
@@ -28,7 +28,20 @@
                         { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
                         { "name": "Factor", "caption": "Faktor", "width": "120px", "add": 1, "edit": { "type": "NumberSpinner", "digits": 4 } },
-                        { "name": "Formatted", "caption": "Formatiert", "width": "100px", "add": false, "edit": { "type": "CheckBox" } }
+                        { "name": "Formatted", "caption": "Formatiert", "width": "100px", "add": false, "edit": { "type": "CheckBox" } },
+                        {
+                            "name": "Operation", "caption": "Berechnung", "width": "130px", "add": "Summe",
+                            "edit": {
+                                "type": "Select",
+                                "options": [
+                                    { "caption": "Summe", "value": "Summe" },
+                                    { "caption": "Differenz", "value": "Differenz" },
+                                    { "caption": "Mittelwert", "value": "Mittelwert" },
+                                    { "caption": "Minimum", "value": "Minimum" },
+                                    { "caption": "Maximum", "value": "Maximum" }
+                                ]
+                            }
+                        }
                     ]
                 }
             ]
