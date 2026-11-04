@@ -42,6 +42,7 @@
                     "rowCount": 8,
                     "add": true,
                     "delete": true,
+                    "changeOrder": true,
                     "columns": [
                         { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "Page", "caption": "Seite", "width": "110px", "add": "Start", "edit": { "type": "ValidationTextBox" } },
@@ -80,6 +81,7 @@
                     "rowCount": 5,
                     "add": true,
                     "delete": true,
+                    "changeOrder": true,
                     "columns": [
                         { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "Page", "caption": "Seite", "width": "110px", "add": "Start", "edit": { "type": "ValidationTextBox" } },
