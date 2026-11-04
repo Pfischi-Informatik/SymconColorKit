@@ -22,7 +22,7 @@ Echte Untermenues, Kurven und Tagesdiagramme, Wetter-Symbole, freie Platzierung 
 ## Display
 
 ```
-Kopfzeile (Uhr, Akku, WLAN/MQTT)    bleibt auf allen Seiten sichtbar
+Kopfzeile (Uhr, WLAN/MQTT)          bleibt auf allen Seiten sichtbar
 Raster 4 x 3                        12 Plaetze je Seite, Kacheln und Buttons gemischt
 Reiterleiste unten, 40 px           Tippen oder Wischen wechselt die Seite
 ```
@@ -59,6 +59,7 @@ Standardwerte je Key entsprechen der heutigen Firmware-Tabelle:
 | `hp_flow` | WP Vorlauf | °C | 1 | |
 | `room_temp` | Raum | °C | 1 | |
 | `outdoor_temp` | Aussen | °C | 1 | |
+| `battery_soc` | Akku | % | 0 | |
 
 Buttons: `wallbox_pv` = Wallbox PV, `wallbox_fast` = Sofortladen, `dhw_boost` = WW Boost.
 
@@ -66,7 +67,7 @@ Regeln:
 
 - Bei mehreren Zeilen mit gleichem Key legt die erste Zeile Seite, Titel, Einheit, Nachkommastellen und Farben fest. Die
   weiteren Zeilen liefern nur Werte, wie heute bei der Berechnung.
-- `battery_soc` erscheint immer in der Kopfzeile, nie im Raster.
+- `battery_soc` ist eine normale Kachel im Raster. Die Akku-Anzeige in der Kopfzeile entfaellt.
 - Farbregeln: `Text=Farbe`, getrennt durch `;`. Farbe ist `rot`, `orange`, `gruen`, `blau`, `grau` oder 6 Hex-Stellen.
   Der Vergleich mit dem Kachelwert ignoriert Gross- und Kleinschreibung. Ungueltige Regeln werden uebersprungen und im
   Debug gemeldet.
@@ -107,7 +108,7 @@ Reihenfolge ist nicht garantiert, weil retained Nachrichten beliebig ankommen. D
 
 ## Firmware
 
-- `TILES`, `BUTTONS`, `TILE_COLORS` entfallen aus `config.h`. `BATTERY_KEY` bleibt.
+- `TILES`, `BUTTONS`, `TILE_COLORS`, `BATTERY_KEY` und das Akku-Label der Kopfzeile entfallen.
 - Neue Bibliothek ArduinoJson, MQTT-Puffer 4096 Byte.
 - Reiter und Wischen mit dem LVGL-Tabview. `lv_conf.h` muss Tabview und genug LVGL-Speicher fuer 5 x 12 Eintraege
   freigeben; die Groesse wird im Plan am Geraet gemessen.
@@ -126,7 +127,7 @@ Reihenfolge fuer den Nutzer: zuerst Modul aktualisieren, dann Firmware flashen. 
 ## Test
 
 - `test/live.php`: Layout-JSON je Seite, Standardwerte bei alten Zeilen, Farbregeln einschliesslich ungueltiger, erste Zeile
-  gewinnt, `battery_soc` nicht im Raster, Grenzen 5 Seiten / 12 Eintraege / 4096 Byte, leere Payloads, Reihenfolge bei `online`.
+  gewinnt, `battery_soc` als Kachel im Raster, Grenzen 5 Seiten / 12 Eintraege / 4096 Byte, leere Payloads, Reihenfolge bei `online`.
 - Firmware am Geraet: Layouts per MQTT einspielen und ueber serielle Ausgabe und Sichtpruefung des Nutzers kontrollieren:
   Tippen auf jeden Reiter, Wischen, Buttons, freier Speicher nach 5 vollen Seiten, Neustart des Displays.
 - Formular: kann nur der Nutzer in echtem Symcon pruefen.
