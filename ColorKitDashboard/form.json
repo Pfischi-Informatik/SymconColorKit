@@ -20,7 +20,7 @@
                 {
                     "type": "List",
                     "name": "Pages",
-                    "caption": "Seiten in Reihenfolge (hoechstens 5, Name etwa bis 10 Zeichen, ohne Umlaute)",
+                    "caption": "Seiten in Reihenfolge (hoechstens 5, Name etwa bis 10 Zeichen)",
                     "rowCount": 5,
                     "add": true,
                     "delete": true,
@@ -77,7 +77,7 @@
                 {
                     "type": "List",
                     "name": "Buttons",
-                    "caption": "Buttons (Bool-Variable wird umgeschaltet, Skript wird ausgefuehrt)",
+                    "caption": "Buttons und Dimmer (Button: Bool-Variable wird umgeschaltet, Dimmer: Regler 0-100 % ueber den Bereich des Variablenprofils, Skript wird ausgefuehrt)",
                     "rowCount": 5,
                     "add": true,
                     "delete": true,
@@ -85,6 +85,10 @@
                     "columns": [
                         { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "Page", "caption": "Seite", "width": "110px", "add": "Start", "edit": { "type": "ValidationTextBox" } },
+                        {
+                            "name": "Type", "caption": "Typ", "width": "100px", "add": "Button",
+                            "edit": { "type": "Select", "options": [ { "caption": "Button", "value": "Button" }, { "caption": "Dimmer", "value": "Dimmer" } ] }
+                        },
                         { "name": "Label", "caption": "Beschriftung", "width": "150px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
                         { "name": "ScriptID", "caption": "Skript", "width": "300px", "add": 0, "edit": { "type": "SelectScript" } }

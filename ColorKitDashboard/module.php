@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Color Kit Grande (ESP32, LVGL-Firmware). Topics:
  *
  *   <Basis>/state/<key>  Symcon -> Display: Kachelwerte, Button-Zustaende (retained)
- *   <Basis>/cmd/<key>    Display -> Symcon: Button getippt
+ *   <Basis>/cmd/<key>    Display -> Symcon: Button getippt, Dimmer 0-100
  *   <Basis>/status       Display -> Symcon: online | offline (retained, LWT)
  */
 class ColorKitDashboard extends IPSModule
@@ -203,7 +203,8 @@ class ColorKitDashboard extends IPSModule
         foreach ($this->rows('Buttons') as $row) {
             if ($row['Key'] !== '') {
                 $label = ($row['Label'] ?? '') ?: (self::BUTTON_LABELS[$row['Key']] ?? $row['Key']);
-                $this->addItem($layouts, $pages, $row, ['t' => 'btn', 'k' => $row['Key'], 'l' => $label]);
+                $type = ($row['Type'] ?? '') === 'Dimmer' ? 'dim' : 'btn';
+                $this->addItem($layouts, $pages, $row, ['t' => $type, 'k' => $row['Key'], 'l' => $label]);
             }
         }
         return $layouts;
@@ -316,7 +317,8 @@ class ColorKitDashboard extends IPSModule
     private function publishButton(array $button, bool $force): void
     {
         if ($button['Key'] !== '' && IPS_VariableExists($button['VariableID'])) {
-            $this->publish($button['Key'], GetValue($button['VariableID']) ? '1' : '0', $force);
+            $value = ($button['Type'] ?? '') === 'Dimmer' ? (string) $this->dimPercent($button['VariableID']) : (GetValue($button['VariableID']) ? '1' : '0');
+            $this->publish($button['Key'], $value, $force);
         }
     }
 
@@ -356,7 +358,11 @@ class ColorKitDashboard extends IPSModule
                 continue;
             }
             if (IPS_VariableExists($button['VariableID'])) {
-                $this->toggle($button['VariableID']);
+                if (($button['Type'] ?? '') === 'Dimmer') {
+                    $this->dim($button['VariableID'], (int) $payload);
+                } else {
+                    $this->toggle($button['VariableID']);
+                }
             }
             if (IPS_ScriptExists($button['ScriptID'])) {
                 IPS_RunScriptEx($button['ScriptID'], ['KEY' => $key, 'VALUE' => $payload, 'SENDER' => 'ColorKit']);
@@ -373,13 +379,60 @@ class ColorKitDashboard extends IPSModule
             $this->SendDebug('RX', 'Variable ' . $id . ' ist nicht Bool, nicht umgeschaltet', 0);
             return;
         }
+        $this->write($id, !GetValue($id));
+    }
+
+    private function write(int $id, $value): void
+    {
+        $variable = IPS_GetVariable($id);
         // Eigene Aktion: Skript-ID > 1 hat Vorrang, 0 = Standardaktion, 1 = Standardaktion deaktiviert
         $custom = $variable['VariableCustomAction'];
         if ($custom > 1 || ($custom === 0 && $variable['VariableAction'] > 0)) {
-            RequestAction($id, !GetValue($id));
+            RequestAction($id, $value);
         } else {
-            SetValue($id, !GetValue($id));
+            SetValue($id, $value);
         }
+    }
+
+    // Wertebereich aus dem Variablenprofil, ohne Profil 0 bis 100
+    private function dimRange(int $id): array
+    {
+        $variable = IPS_GetVariable($id);
+        $name = $variable['VariableCustomProfile'] ?: $variable['VariableProfile'];
+        if ($name !== '' && IPS_VariableProfileExists($name)) {
+            $profile = IPS_GetVariableProfile($name);
+            if ($profile['MaxValue'] > $profile['MinValue']) {
+                return [$profile['MinValue'], $profile['MaxValue']];
+            }
+        }
+        return [0, 100];
+    }
+
+    private function dimPercent(int $id): int
+    {
+        $value = GetValue($id);
+        if (is_bool($value)) {
+            return $value ? 100 : 0;
+        }
+        [$min, $max] = $this->dimRange($id);
+        return (int) round(max(0, min(100, ($value - $min) * 100 / ($max - $min))));
+    }
+
+    private function dim(int $id, int $percent): void
+    {
+        $percent = max(0, min(100, $percent));
+        $type = IPS_GetVariable($id)['VariableType'];
+        if ($type === VARIABLETYPE_BOOLEAN) {
+            $this->write($id, $percent > 0);
+            return;
+        }
+        if ($type === VARIABLETYPE_STRING) {
+            $this->SendDebug('RX', 'Variable ' . $id . ' ist Text, nicht gedimmt', 0);
+            return;
+        }
+        [$min, $max] = $this->dimRange($id);
+        $value = $min + ($max - $min) * $percent / 100;
+        $this->write($id, $type === VARIABLETYPE_INTEGER ? (int) round($value) : (float) $value);
     }
 
     private function rows(string $property): array

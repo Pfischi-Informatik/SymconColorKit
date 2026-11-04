@@ -9,6 +9,9 @@ declare(strict_types=1);
  */
 
 const VARIABLETYPE_BOOLEAN = 0;
+const VARIABLETYPE_INTEGER = 1;
+const VARIABLETYPE_FLOAT = 2;
+const VARIABLETYPE_STRING = 3;
 const VM_UPDATE = 10603;
 
 $vars = [];    // id => [value, type, action, custom, formatted]
@@ -19,7 +22,9 @@ $ran = [];
 function IPS_ObjectExists($id) { global $vars; return isset($vars[$id]); }
 function IPS_VariableExists($id) { global $vars; return isset($vars[$id]); }
 function IPS_ScriptExists($id) { return $id === 500; }
-function IPS_GetVariable($id) { global $vars; return ['VariableType' => $vars[$id][1], 'VariableAction' => $vars[$id][2], 'VariableCustomAction' => $vars[$id][3]]; }
+function IPS_GetVariable($id) { global $vars; return ['VariableType' => $vars[$id][1], 'VariableAction' => $vars[$id][2], 'VariableCustomAction' => $vars[$id][3], 'VariableProfile' => $vars[$id][5] ?? '', 'VariableCustomProfile' => '']; }
+function IPS_VariableProfileExists($n) { return $n === 'Hell1' || $n === 'Hell255'; }
+function IPS_GetVariableProfile($n) { return ['MinValue' => 0.0, 'MaxValue' => $n === 'Hell1' ? 1.0 : 255.0]; }
 function GetValue($id) { global $vars; return $vars[$id][0]; }
 function GetValueFormatted($id) { global $vars; return $vars[$id][4]; }
 function SetValue($id, $v) { global $vars; $vars[$id][0] = $v; }
@@ -333,5 +338,39 @@ $p->sent = [];
 $p->active = false;
 $p->PublishAll();
 assert($p->sent === []);
+
+// Dimmer: Layout, Skalierung ueber das Profil, Bool, Standardaktion, Grenzen
+$d = new ColorKitDashboard();
+$d->Create();
+$d->active = true;
+$vars[901] = [0.5, VARIABLETYPE_FLOAT, 0, 1, '', 'Hell1'];
+$vars[902] = [255, VARIABLETYPE_INTEGER, 7, 0, '', 'Hell255'];
+$vars[903] = [40, VARIABLETYPE_INTEGER, 0, 1, ''];
+$vars[904] = [true, VARIABLETYPE_BOOLEAN, 0, 1, ''];
+$d->props['Tiles'] = '[]';
+$d->props['Pages'] = json_encode([['Name' => 'Start']]);
+$d->props['Buttons'] = json_encode([
+    ['Key' => 'f', 'VariableID' => 901, 'ScriptID' => 0, 'Type' => 'Dimmer', 'Label' => 'LED Büro'],
+    ['Key' => 'i', 'VariableID' => 902, 'ScriptID' => 0, 'Type' => 'Dimmer'],
+    ['Key' => 'n', 'VariableID' => 903, 'ScriptID' => 0, 'Type' => 'Dimmer'],
+    ['Key' => 'b', 'VariableID' => 904, 'ScriptID' => 0, 'Type' => 'Dimmer'],
+    ['Key' => 'alt', 'VariableID' => 904, 'ScriptID' => 0],
+]);
+$d->PublishAll();
+$s = array_column(layouts($d), 1, 0);
+$l = json_decode($s['colorkit/layout/0'], true);
+assert($l[0] === ['t' => 'dim', 'k' => 'f', 'l' => 'LED Büro']);
+assert($l[4]['t'] === 'btn');
+assert($s['colorkit/state/f'] === '50' && $s['colorkit/state/i'] === '100' && $s['colorkit/state/n'] === '40' && $s['colorkit/state/b'] === '100');
+assert($s['colorkit/state/alt'] === '1');
+rx($d, 'colorkit/cmd/f', '25');
+assert($vars[901][0] === 0.25);
+$requested = [];
+rx($d, 'colorkit/cmd/i', '20');
+assert($requested === [[902, 51]]);
+rx($d, 'colorkit/cmd/n', '999');
+assert($vars[903][0] === 100);
+rx($d, 'colorkit/cmd/b', '0');
+assert($vars[904][0] === false);
 
 echo "OK\n";

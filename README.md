@@ -38,6 +38,7 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 - **Buttons**: Key, Seite, Beschriftung, Variable, Skript. Eine Bool-Variable wird beim Tippen umgeschaltet (per `RequestAction`, wenn sie eine
   Aktion hat, sonst `SetValue`). Ein Skript wird danach mit `$_IPS['KEY']`, `$_IPS['VALUE']` und `$_IPS['SENDER']` = `ColorKit` gestartet.
 
+- **Dimmer**: In der Button-Liste Typ `Dimmer` waehlen. Das Display zeigt einen Regler von 0 bis 100 % und sendet den Wert beim Loslassen. Er wird auf den Bereich des Variablenprofils umgerechnet (ohne Profil 0 bis 100). Bool-Variablen: 0 % = aus, sonst an.
 - **Seiten**: Bis zu 5 Seiten mit je 12 Plaetzen. Die Plaetze fuellen sich in Reihenfolge der Listen, zuerst Kacheln, dann Buttons. Die Reihenfolge aenderst du per Drag & Drop in den Listen.
   Titel, Einheit und Farben stellen Sie je Zeile ein, leer bedeutet Standardwert. Farben: `Text=Farbe;Text=Farbe` mit
   rot, orange, gruen, blau, grau oder 6 Hex-Stellen. `battery_soc` ist eine normale Kachel.
@@ -45,8 +46,7 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 
 Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.
 
-**Umlaute:** Die Display-Schrift (LVGL Montserrat) hat keine Umlaute. Fuer formatierte Kacheln daher Profiltexte ohne
-Umlaute verwenden, also `Kuehlen` statt `Kühlen`. Das gilt auch fuer Titel, Beschriftungen und Seitennamen.
+**Umlaute:** Die Firmware zeigt Ä Ö Ü ä ö ü ß in Titeln, Beschriftungen, Seitennamen und Profiltexten. Andere Sonderzeichen fehlen in der Schrift.
 Seitennamen hoechstens etwa 10 Zeichen, sonst passen 5 Reiter nicht in die Leiste.
 
 ## Funktionen
