@@ -1,0 +1,12 @@
+{
+    "id": "{531CBFEB-59AD-4F36-A953-EDE47521C5DE}",
+    "author": "Dominik Pfister",
+    "name": "ColorKit",
+    "url": "https://github.com/Pfischi-Informatik/SymconColorKit",
+    "compatibility": {
+        "version": "7.0"
+    },
+    "version": "1.0",
+    "build": 1,
+    "date": 0
+}

@@ -1,0 +1,63 @@
+{
+    "elements": [
+        {
+            "type": "ValidationTextBox",
+            "name": "BaseTopic",
+            "caption": "Basis-Topic",
+            "validate": "^[^#+]+$"
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "RepublishInterval",
+            "caption": "Alles neu senden alle",
+            "suffix": "Sekunden (0 = aus)",
+            "minimum": 0
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Kacheln",
+            "items": [
+                {
+                    "type": "List",
+                    "name": "Tiles",
+                    "caption": "Kacheln (Key muss zur Firmware passen)",
+                    "rowCount": 8,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
+                        { "name": "Factor", "caption": "Faktor", "width": "120px", "add": 1, "edit": { "type": "NumberSpinner", "digits": 4 } },
+                        { "name": "Formatted", "caption": "Formatiert", "width": "100px", "add": false, "edit": { "type": "CheckBox" } }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Buttons",
+            "items": [
+                {
+                    "type": "List",
+                    "name": "Buttons",
+                    "caption": "Buttons (Bool-Variable wird umgeschaltet, Skript wird ausgefuehrt)",
+                    "rowCount": 5,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
+                        { "name": "ScriptID", "caption": "Skript", "width": "300px", "add": 0, "edit": { "type": "SelectScript" } }
+                    ]
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Alle Werte jetzt senden",
+            "onClick": "CKD_PublishAll($id);"
+        }
+    ]
+}
