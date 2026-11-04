@@ -53,14 +53,14 @@ require __DIR__ . '/../ColorKitDashboard/module.php';
 
 function rx(ColorKitDashboard $m, string $topic, string $payload): void
 {
-    $m->ReceiveData(json_encode(['Topic' => $topic, 'Payload' => bin2hex($payload)]));
+    $m->ReceiveData(json_encode(['Topic' => $topic, 'Payload' => mb_convert_encoding($payload, 'UTF-8', 'ISO-8859-1')]));
 }
 function state(ColorKitDashboard $m): array
 {
     $out = [];
     foreach ($m->sent as $s) {
         assert($s['Retain'] === true && $s['PacketType'] === 3);
-        $out[$s['Topic']] = hex2bin($s['Payload']);
+        $out[$s['Topic']] = mb_convert_encoding($s['Payload'], 'ISO-8859-1', 'UTF-8');
     }
     $m->sent = [];
     return $out;
@@ -69,7 +69,7 @@ function state(ColorKitDashboard $m): array
 $vars = [
     1 => [3420, 1, 0, 0, ''],           // Zahl mit Faktor
     2 => [-0.01, 2, 0, 0, ''],          // rundet auf -0
-    3 => [2, 1, 0, 0, 'Heizen'],        // formatiert
+    3 => [2, 1, 0, 0, '21,5 °C'],       // formatiert, Nicht-ASCII
     4 => [true, 0, 0, 0, ''],           // Bool-Kachel
     5 => ['Text', 3, 0, 0, ''],         // Text
     10 => [false, 0, 0, 0, ''],         // Button ohne Aktion -> SetValue
@@ -108,11 +108,17 @@ assert($m->filter === '.*colorkit.*');
 $s = state($m);
 assert($s['colorkit/state/a'] === '3.42');
 assert($s['colorkit/state/b'] === '-0.01' || $s['colorkit/state/b'] === '0');
-assert($s['colorkit/state/c'] === 'Heizen');
+assert($s['colorkit/state/c'] === '21,5 °C');
 assert($s['colorkit/state/d'] === '1');
 assert($s['colorkit/state/e'] === 'Text');
 assert($s['colorkit/state/noaction'] === '0' && $s['colorkit/state/custom'] === '1');
 assert(!isset($s['colorkit/state/leer']) && !isset($s['colorkit/state/script']));
+
+// Klartext auf der Leitung, nicht hex (825 W * 0.001)
+$vars[1][0] = 825;
+$m->MessageSink(0, 1, VM_UPDATE, []);
+assert($m->sent[0]['Payload'] === '0.825');
+state($m);
 
 // Rundung auf -0 wird zu 0
 $vars[2][0] = -0.00001;

@@ -99,7 +99,8 @@ class ColorKitDashboard extends IPSModule
     {
         $data = json_decode($JSONString, true);
         $topic = (string) ($data['Topic'] ?? '');
-        $payload = (string) hex2bin((string) ($data['Payload'] ?? ''));
+        // IPSModule: Nutzlast Byte fuer Byte als Latin-1 nach UTF-8 kodiert (hex nur bei IPSModuleStrict)
+        $payload = mb_convert_encoding((string) ($data['Payload'] ?? ''), 'ISO-8859-1', 'UTF-8');
         $this->SendDebug('RX', $topic . ' = ' . $payload, 0);
 
         $base = $this->baseTopic();
@@ -165,7 +166,7 @@ class ColorKitDashboard extends IPSModule
             'QualityOfService' => 0,
             'Retain'           => true,
             'Topic'            => $topic,
-            'Payload'          => bin2hex($payload),
+            'Payload'          => mb_convert_encoding($payload, 'UTF-8', 'ISO-8859-1'),
         ], JSON_UNESCAPED_SLASHES));
     }
 
