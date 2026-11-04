@@ -44,6 +44,9 @@ class IPSModule
     protected function SetReceiveDataFilter($f) { $this->filter = $f; }
     protected function RegisterMessage($id, $m) { $this->messages[$id] = true; }
     protected function UnregisterMessage($id, $m) { unset($this->messages[$id]); }
+    public $buffers = [];
+    protected function GetBuffer($n) { return $this->buffers[$n] ?? ''; }
+    protected function SetBuffer($n, $v) { $this->buffers[$n] = $v; }
     protected function HasActiveParent() { return $this->active; }
     protected function SendDebug($t, $m, $f) {}
     protected function SendDataToParent($json) { $this->sent[] = json_decode($json, true); return ''; }
@@ -120,14 +123,22 @@ $m->MessageSink(0, 1, VM_UPDATE, []);
 assert($m->sent[0]['Payload'] === '0.825');
 state($m);
 
+// Unveraenderter Wert wird bei VM_UPDATE nicht erneut gesendet, PublishAll sendet immer
+$m->MessageSink(0, 1, VM_UPDATE, []);
+assert(state($m) === []);
+$m->PublishAll();
+assert(isset(state($m)['colorkit/state/a']));
+
 // Rundung auf -0 wird zu 0
 $vars[2][0] = -0.00001;
+$m->buffers = [];
 $m->MessageSink(0, 2, VM_UPDATE, []);
 assert(state($m) === ['colorkit/state/b' => '0']);
 
 // Mehrere Variablen pro Key, Faktor je Zeile, Berechnung aus der ersten Zeile
 $saved = [$m->props['Tiles'], $vars];
 $vars[1][0] = 1000; $vars[2][0] = 500.0; $vars[4][0] = true;
+$m->buffers = [];
 $combo = function (string $op) use ($m): void {
     $m->props['Tiles'] = json_encode([
         ['Key' => 'wb', 'VariableID' => 1, 'Factor' => 0.001, 'Formatted' => true, 'Operation' => $op],
@@ -152,6 +163,7 @@ $m->props['Tiles'] = json_encode([
 $m->MessageSink(0, 1, VM_UPDATE, []);
 assert(state($m) === ['colorkit/state/x' => '499', 'colorkit/state/y' => '1500']);
 // Nur Text: nichts senden
+$m->buffers = [];
 $m->props['Tiles'] = json_encode([['Key' => 't', 'VariableID' => 5, 'Factor' => 1], ['Key' => 't', 'VariableID' => 5, 'Factor' => 1]]);
 $m->MessageSink(0, 5, VM_UPDATE, []);
 assert(state($m) === []);

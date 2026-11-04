@@ -86,12 +86,12 @@ class ColorKitDashboard extends IPSModule
         }
         foreach ($this->tileGroups() as $key => $group) {
             if (in_array($SenderID, array_column($group, 'VariableID'), true)) {
-                $this->publishTile($key, $group);
+                $this->publishTile($key, $group, false);
             }
         }
         foreach ($this->rows('Buttons') as $button) {
             if ($button['VariableID'] === $SenderID) {
-                $this->publishButton($button);
+                $this->publishButton($button, false);
             }
         }
     }
@@ -118,10 +118,10 @@ class ColorKitDashboard extends IPSModule
     public function PublishAll(): void
     {
         foreach ($this->tileGroups() as $key => $group) {
-            $this->publishTile($key, $group);
+            $this->publishTile($key, $group, true);
         }
         foreach ($this->rows('Buttons') as $button) {
-            $this->publishButton($button);
+            $this->publishButton($button, true);
         }
     }
 
@@ -137,7 +137,7 @@ class ColorKitDashboard extends IPSModule
         return $groups;
     }
 
-    private function publishTile(string $key, array $group): void
+    private function publishTile(string $key, array $group, bool $force): void
     {
         $operation = $group[0]['Operation'] ?? 'Summe'; // gilt aus der ersten Zeile
         $tiles = array_values(array_filter($group, fn ($tile) => IPS_VariableExists($tile['VariableID'])));
@@ -145,7 +145,7 @@ class ColorKitDashboard extends IPSModule
             return;
         }
         if (count($tiles) > 1) {
-            $this->publishCombined($key, $tiles, $operation);
+            $this->publishCombined($key, $tiles, $operation, $force);
             return;
         }
 
@@ -162,10 +162,10 @@ class ColorKitDashboard extends IPSModule
                 $text = (string) $value;
             }
         }
-        $this->publish($key, $text);
+        $this->publish($key, $text, $force);
     }
 
-    private function publishCombined(string $key, array $tiles, string $operation): void
+    private function publishCombined(string $key, array $tiles, string $operation, bool $force): void
     {
         $values = [];
         foreach ($tiles as $tile) {
@@ -185,7 +185,7 @@ class ColorKitDashboard extends IPSModule
             'Maximum'    => max($values),
             default      => array_sum($values),
         };
-        $this->publish($key, $this->number($result));
+        $this->publish($key, $this->number($result), $force);
     }
 
     private function number(float|int $value): string
@@ -193,20 +193,25 @@ class ColorKitDashboard extends IPSModule
         return (string) (round($value, 4) + 0.0); // + 0.0: kein "-0" auf dem Display
     }
 
-    private function publishButton(array $button): void
+    private function publishButton(array $button, bool $force): void
     {
         if ($button['Key'] !== '' && IPS_VariableExists($button['VariableID'])) {
-            $this->publish($button['Key'], GetValue($button['VariableID']) ? '1' : '0');
+            $this->publish($button['Key'], GetValue($button['VariableID']) ? '1' : '0', $force);
         }
     }
 
-    private function publish(string $key, string $payload): void
+    // $force = false: unveraenderte Werte nicht senden, das entlastet die Funkstrecke
+    private function publish(string $key, string $payload, bool $force): void
     {
+        if (!$force && $this->GetBuffer('tx_' . $key) === $payload) {
+            return;
+        }
         $topic = $this->baseTopic() . '/state/' . $key;
         if (!$this->HasActiveParent()) {
             $this->SendDebug('TX', 'Kein aktiver Parent, verworfen: ' . $topic . ' = ' . $payload, 0);
             return;
         }
+        $this->SetBuffer('tx_' . $key, $payload);
         $this->SendDebug('TX', $topic . ' = ' . $payload, 0);
         $this->SendDataToParent(json_encode([
             'DataID'           => self::TX,
