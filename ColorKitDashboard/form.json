@@ -15,17 +15,39 @@
         },
         {
             "type": "ExpansionPanel",
+            "caption": "Seiten",
+            "items": [
+                {
+                    "type": "List",
+                    "name": "Pages",
+                    "caption": "Seiten in Reihenfolge (hoechstens 5)",
+                    "rowCount": 5,
+                    "add": true,
+                    "delete": true,
+                    "changeOrder": true,
+                    "columns": [
+                        { "name": "Name", "caption": "Name", "width": "auto", "add": "", "edit": { "type": "ValidationTextBox" } }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
             "caption": "Kacheln",
             "items": [
                 {
                     "type": "List",
                     "name": "Tiles",
-                    "caption": "Kacheln (Key muss zur Firmware passen. Gleicher Key in mehreren Zeilen = Werte verrechnen, Berechnung gilt aus der ersten Zeile)",
+                    "caption": "Kacheln (leer = Standardwert. Gleicher Key in mehreren Zeilen = Werte verrechnen, die erste Zeile legt Seite, Titel, Einheit, Stellen, Farben und Berechnung fest)",
                     "rowCount": 8,
                     "add": true,
                     "delete": true,
                     "columns": [
                         { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Page", "caption": "Seite", "width": "110px", "add": "Start", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Title", "caption": "Titel", "width": "110px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Unit", "caption": "Einheit", "width": "70px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Decimals", "caption": "Stellen", "width": "70px", "add": -1, "edit": { "type": "NumberSpinner", "minimum": -1, "maximum": 6 } },
                         { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
                         { "name": "Factor", "caption": "Faktor", "width": "120px", "add": 1, "edit": { "type": "NumberSpinner", "digits": 4 } },
                         { "name": "Formatted", "caption": "Formatiert", "width": "100px", "add": false, "edit": { "type": "CheckBox" } },
@@ -41,7 +63,8 @@
                                     { "caption": "Maximum", "value": "Maximum" }
                                 ]
                             }
-                        }
+                        },
+                        { "name": "Colors", "caption": "Farben", "width": "220px", "add": "", "edit": { "type": "ValidationTextBox" } }
                     ]
                 }
             ]
@@ -59,6 +82,8 @@
                     "delete": true,
                     "columns": [
                         { "name": "Key", "caption": "Key", "width": "200px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Page", "caption": "Seite", "width": "110px", "add": "Start", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Label", "caption": "Beschriftung", "width": "150px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
                         { "name": "ScriptID", "caption": "Skript", "width": "300px", "add": 0, "edit": { "type": "SelectScript" } }
                     ]

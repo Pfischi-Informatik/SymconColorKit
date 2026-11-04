@@ -223,4 +223,102 @@ assert($m->interval === 0);
 assert($m->filter === '.*home.*colorkit.*');
 assert(isset(state($m)['home/colorkit/state/noaction']));
 
+// ===== Seiten =====
+function layouts(ColorKitDashboard $m): array
+{
+    $out = [];
+    foreach ($m->sent as $s) {
+        $out[] = [$s['Topic'], mb_convert_encoding($s['Payload'], 'ISO-8859-1', 'UTF-8')];
+    }
+    return $out;
+}
+
+$p = new ColorKitDashboard();
+$p->Create();
+
+// Alte Zeilen ohne neue Spalten: Standardwerte auf "Start", Akku als Kachel
+$p->props['Tiles'] = json_encode([
+    ['Key' => 'hp_flow', 'VariableID' => 1, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+    ['Key' => 'hp_mode', 'VariableID' => 3, 'Factor' => 1, 'Formatted' => true, 'Operation' => 'Summe'],
+    ['Key' => 'battery_soc', 'VariableID' => 1, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+    ['Key' => 'eigener_key', 'VariableID' => 1, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
+]);
+$p->props['Buttons'] = json_encode([['Key' => 'dhw_boost', 'VariableID' => 10, 'ScriptID' => 0]]);
+$p->PublishAll();
+$sent = layouts($p);
+$p->sent = [];
+assert($sent[0] === ['colorkit/pages', '["Start"]']);
+assert($sent[1][0] === 'colorkit/layout/0');
+assert($sent[1][1] === '[{"t":"tile","k":"hp_flow","l":"WP Vorlauf","u":"°C","d":1},'
+    . '{"t":"tile","k":"hp_mode","l":"WP Modus","u":"","d":-1,"c":[["Standby","EF6C00"],["Aus","C62828"],["Ein","2E7D32"]]},'
+    . '{"t":"tile","k":"battery_soc","l":"Akku","u":"%","d":0},'
+    . '{"t":"tile","k":"eigener_key","l":"eigener_key","u":"","d":-1},'
+    . '{"t":"btn","k":"dhw_boost","l":"WW Boost"}]');
+// Nicht genutzte Seiten werden geleert, Werte kommen nach den Layouts
+foreach ([1, 2, 3, 4] as $i) {
+    assert($sent[1 + $i] === ["colorkit/layout/$i", '']);
+}
+assert(str_contains($sent[6][0], '/state/'));
+
+// Seiten, Zeile mit eigenen Werten, zweite Zeile desselben Keys aendert nichts, Farben
+$p->props['Pages'] = json_encode([['Name' => 'Start'], ['Name' => 'Energie'], ['Name' => ' '], ['Name' => 'Energie']]);
+$p->props['Tiles'] = json_encode([
+    ['Key' => 'wb', 'VariableID' => 1, 'Factor' => 1, 'Page' => 'Energie', 'Title' => 'Wallbox', 'Unit' => 'kW', 'Decimals' => 2,
+        'Colors' => 'Laedt=gruen; Fehler=ff0000;kaputt;x=lila;=rot'],
+    ['Key' => 'wb', 'VariableID' => 2, 'Factor' => 1, 'Page' => 'Start', 'Title' => 'Falsch', 'Unit' => 'X', 'Decimals' => 0, 'Colors' => ''],
+    // Bearbeitete Standardzeile mit leeren Feldern: Standardwerte
+    ['Key' => 'pv_power', 'VariableID' => 1, 'Factor' => 1, 'Page' => '', 'Title' => '', 'Unit' => '', 'Decimals' => 0, 'Colors' => ''],
+    // Geloeschte Seite: erste Seite, Wert wird weiter gesendet
+    ['Key' => 'weg', 'VariableID' => 1, 'Factor' => 1, 'Page' => 'Gibtsnicht'],
+]);
+$p->props['Buttons'] = json_encode([['Key' => 'licht', 'VariableID' => 0, 'ScriptID' => 0, 'Page' => 'Energie', 'Label' => 'Licht']]);
+$p->PublishAll();
+$sent = layouts($p);
+$p->sent = [];
+assert($sent[0][1] === '["Start","Energie"]');
+assert($sent[1][1] === '[{"t":"tile","k":"pv_power","l":"PV","u":"W","d":0},{"t":"tile","k":"weg","l":"weg","u":"","d":-1}]');
+assert($sent[2][1] === '[{"t":"tile","k":"wb","l":"Wallbox","u":"kW","d":2,"c":[["Laedt","2E7D32"],["Fehler","FF0000"]]},{"t":"btn","k":"licht","l":"Licht"}]');
+assert($sent[3] === ['colorkit/layout/2', '']);
+assert(in_array('colorkit/state/weg', array_column($sent, 0), true));
+
+// Grenzen: 5 Seiten, 12 Eintraege, Werte der ueberzaehligen Zeilen laufen weiter
+$p->props['Pages'] = json_encode(array_map(fn ($i) => ['Name' => "S$i"], range(1, 7)));
+$p->props['Tiles'] = json_encode(array_map(fn ($i) => ['Key' => "k$i", 'VariableID' => 1, 'Factor' => 1, 'Page' => 'S1'], range(1, 14)));
+$p->props['Buttons'] = '[]';
+$p->PublishAll();
+$sent = layouts($p);
+$p->sent = [];
+assert(count(json_decode($sent[0][1])) === 5);
+assert(count(json_decode($sent[1][1])) === 12);
+assert(in_array('colorkit/state/k14', array_column($sent, 0), true));
+assert(!in_array('colorkit/layout/5', array_column($sent, 0), true));
+
+// Zu grosses Layout wird nicht gesendet, die anderen schon
+$p->props['Pages'] = json_encode([['Name' => 'A'], ['Name' => 'B']]);
+$p->props['Tiles'] = json_encode([
+    ['Key' => 'gross', 'VariableID' => 1, 'Factor' => 1, 'Page' => 'A', 'Title' => str_repeat('x', 4100)],
+    ['Key' => 'klein', 'VariableID' => 1, 'Factor' => 1, 'Page' => 'B'],
+]);
+$p->PublishAll();
+$topics = array_column(layouts($p), 0);
+$p->sent = [];
+assert(!in_array('colorkit/layout/0', $topics, true));
+assert(in_array('colorkit/layout/1', $topics, true));
+
+// Rein numerischer Key loest keinen Typfehler aus
+$p->props['Pages'] = '[]';
+$p->props['Tiles'] = json_encode([['Key' => '123', 'VariableID' => 1, 'Factor' => 1]]);
+$p->PublishAll();
+$p->MessageSink(0, 1, VM_UPDATE, []);
+$p->sent = [];
+// Leere Seitenliste: "Start"
+$p->PublishAll();
+assert(layouts($p)[0][1] === '["Start"]');
+$p->sent = [];
+
+// Ohne aktiven Parent wird auch kein Layout gesendet
+$p->active = false;
+$p->PublishAll();
+assert($p->sent === []);
+
 echo "OK\n";

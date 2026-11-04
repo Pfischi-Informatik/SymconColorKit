@@ -21,6 +21,8 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 | `colorkit/state/<key>` | Symcon -> Display | Kachelwert (Zahl als Text, z.B. `3.42`, oder Text), Button-Zustand `0`/`1`. Retain = true |
 | `colorkit/cmd/<key>` | Display -> Symcon | Button getippt, Payload `1` |
 | `colorkit/status` | Display -> Symcon | `online`/`offline` (retained, LWT). Bei `online` sendet Symcon sofort alle Werte |
+| `colorkit/pages` | Symcon -> Display | Seitennamen als JSON (retained) |
+| `colorkit/layout/<n>` | Symcon -> Display | Inhalt der Seite n als JSON (retained), leer = keine Seite |
 | `colorkit/diag` | Display -> Symcon | WLAN-Diagnose nach jedem Verbinden (retained), steht im Debug-Fenster unter RX |
 
 ## Konfiguration
@@ -36,7 +38,12 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 - **Buttons**: Key, Variable, Skript. Eine Bool-Variable wird beim Tippen umgeschaltet (per `RequestAction`, wenn sie eine
   Aktion hat, sonst `SetValue`). Ein Skript wird danach mit `$_IPS['KEY']`, `$_IPS['VALUE']` und `$_IPS['SENDER']` = `ColorKit` gestartet.
 
-`battery_soc` (Akku in %) erscheint in der Kopfzeile des Displays. Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.
+- **Seiten**: Bis zu 5 Seiten mit je 12 Plaetzen. Die Plaetze fuellen sich in Reihenfolge der Listen, zuerst Kacheln, dann Buttons.
+  Titel, Einheit und Farben stellen Sie je Zeile ein, leer bedeutet Standardwert. Farben: `Text=Farbe;Text=Farbe` mit
+  rot, orange, gruen, blau, grau oder 6 Hex-Stellen. `battery_soc` ist eine normale Kachel.
+- Nach dem Update des Moduls den Symcon-Dienst neu starten, damit die neue Eigenschaft `Pages` angelegt wird.
+
+Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.
 
 **Umlaute:** Die Display-Schrift (LVGL Montserrat) hat keine Umlaute. Fuer formatierte Kacheln daher Profiltexte ohne
 Umlaute verwenden, also `Kuehlen` statt `Kühlen`.

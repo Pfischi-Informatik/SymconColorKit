@@ -35,6 +35,27 @@ class ColorKitDashboard extends IPSModule
         ['Key' => 'dhw_boost', 'VariableID' => 0, 'ScriptID' => 0],
     ];
 
+    private const MAX_PAGES = 5;
+    private const MAX_ITEMS = 12;
+    private const MAX_LAYOUT_BYTES = 4096;
+
+    // Key => [Titel, Einheit, Nachkommastellen, Farbregeln]
+    private const TILE_DEFAULTS = [
+        'pv_power'      => ['PV', 'W', 0, ''],
+        'house_power'   => ['Haus', 'W', 0, ''],
+        'grid_power'    => ['Netz', 'W', 0, ''],
+        'wallbox_power' => ['Wallbox', 'kW', 2, ''],
+        'hp_mode'       => ['WP Modus', '', -1, 'Standby=orange;Aus=rot;Ein=gruen'],
+        'hp_flow'       => ['WP Vorlauf', '°C', 1, ''],
+        'room_temp'     => ['Raum', '°C', 1, ''],
+        'outdoor_temp'  => ['Aussen', '°C', 1, ''],
+        'battery_soc'   => ['Akku', '%', 0, ''],
+    ];
+
+    private const BUTTON_LABELS = ['wallbox_pv' => 'Wallbox PV', 'wallbox_fast' => 'Sofortladen', 'dhw_boost' => 'WW Boost'];
+
+    private const COLOR_NAMES = ['rot' => 'C62828', 'orange' => 'EF6C00', 'gruen' => '2E7D32', 'blau' => '1565C0', 'grau' => '546E7A'];
+
     public function Create(): void
     {
         parent::Create();
@@ -45,6 +66,7 @@ class ColorKitDashboard extends IPSModule
         $this->RegisterPropertyInteger('RepublishInterval', 300);
         $this->RegisterPropertyString('Tiles', json_encode(self::DEFAULT_TILES));
         $this->RegisterPropertyString('Buttons', json_encode(self::DEFAULT_BUTTONS));
+        $this->RegisterPropertyString('Pages', json_encode([['Name' => 'Start']]));
 
         $this->RegisterAttributeString('RegisteredVariables', '[]');
 
@@ -86,7 +108,7 @@ class ColorKitDashboard extends IPSModule
         }
         foreach ($this->tileGroups() as $key => $group) {
             if (in_array($SenderID, array_column($group, 'VariableID'), true)) {
-                $this->publishTile($key, $group, false);
+                $this->publishTile((string) $key, $group, false);
             }
         }
         foreach ($this->rows('Buttons') as $button) {
@@ -117,12 +139,109 @@ class ColorKitDashboard extends IPSModule
 
     public function PublishAll(): void
     {
+        $this->publishLayouts();
         foreach ($this->tileGroups() as $key => $group) {
-            $this->publishTile($key, $group, true);
+            $this->publishTile((string) $key, $group, true);
         }
         foreach ($this->rows('Buttons') as $button) {
             $this->publishButton($button, true);
         }
+    }
+
+    private function publishLayouts(): void
+    {
+        $pages = $this->pageNames();
+        $layouts = $this->layouts($pages);
+        $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
+        $this->sendRetained($this->baseTopic() . '/pages', json_encode($pages, $flags));
+        for ($i = 0; $i < self::MAX_PAGES; $i++) {
+            $payload = isset($layouts[$i]) ? json_encode($layouts[$i], $flags) : ''; // leer: retained Seite loeschen
+            if (strlen($payload) > self::MAX_LAYOUT_BYTES) {
+                $this->SendDebug('Seiten', 'Seite ' . $pages[$i] . ' ist zu gross und wird nicht gesendet', 0);
+                continue;
+            }
+            $this->sendRetained($this->baseTopic() . '/layout/' . $i, $payload);
+        }
+    }
+
+    private function pageNames(): array
+    {
+        $names = [];
+        foreach ($this->rows('Pages') as $row) {
+            $name = trim((string) ($row['Name'] ?? ''));
+            if ($name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+        if (count($names) > self::MAX_PAGES) {
+            $this->SendDebug('Seiten', 'Mehr als ' . self::MAX_PAGES . ' Seiten, der Rest wird nicht angezeigt', 0);
+        }
+        return array_slice($names, 0, self::MAX_PAGES) ?: ['Start'];
+    }
+
+    private function layouts(array $pages): array
+    {
+        $layouts = array_fill(0, count($pages), []);
+        foreach ($this->tileGroups() as $key => $group) {
+            $key = (string) $key;
+            $row = $group[0];
+            $default = self::TILE_DEFAULTS[$key] ?? [$key, '', -1, ''];
+            $item = [
+                't' => 'tile',
+                'k' => $key,
+                'l' => ($row['Title'] ?? '') ?: $default[0],
+                'u' => ($row['Unit'] ?? '') ?: $default[1],
+                'd' => (int) ($row['Decimals'] ?? $default[2]),
+            ];
+            $colors = $this->parseColors(($row['Colors'] ?? '') ?: $default[3]);
+            if (count($colors) > 0) {
+                $item['c'] = $colors;
+            }
+            $this->addItem($layouts, $pages, $row, $item);
+        }
+        foreach ($this->rows('Buttons') as $row) {
+            if ($row['Key'] !== '') {
+                $label = ($row['Label'] ?? '') ?: (self::BUTTON_LABELS[$row['Key']] ?? $row['Key']);
+                $this->addItem($layouts, $pages, $row, ['t' => 'btn', 'k' => $row['Key'], 'l' => $label]);
+            }
+        }
+        return $layouts;
+    }
+
+    private function addItem(array &$layouts, array $pages, array $row, array $item): void
+    {
+        $name = $row['Page'] ?? 'Start';
+        $index = array_search($name, $pages, true);
+        if ($index === false) {
+            $index = 0;
+            if ($name !== '') {
+                $this->SendDebug('Seiten', $item['k'] . ': Seite ' . $name . ' gibt es nicht, nehme ' . $pages[0], 0);
+            }
+        }
+        if (count($layouts[$index]) >= self::MAX_ITEMS) {
+            $this->SendDebug('Seiten', $item['k'] . ': Seite ' . $pages[$index] . ' ist voll', 0);
+            return;
+        }
+        $layouts[$index][] = $item;
+    }
+
+    private function parseColors(string $rules): array
+    {
+        $colors = [];
+        foreach (explode(';', $rules) as $rule) {
+            if (trim($rule) === '') {
+                continue;
+            }
+            $parts = array_map('trim', explode('=', $rule, 2));
+            $color = strtolower($parts[1] ?? '');
+            $hex = self::COLOR_NAMES[$color] ?? (preg_match('/^[0-9a-f]{6}$/', $color) ? strtoupper($color) : null);
+            if ($parts[0] === '' || $hex === null) {
+                $this->SendDebug('Seiten', 'Ungueltige Farbregel: ' . $rule, 0);
+                continue;
+            }
+            $colors[] = [$parts[0], $hex];
+        }
+        return $colors;
     }
 
     // Zeilen mit gleichem Key bilden eine Kachel
@@ -206,12 +325,17 @@ class ColorKitDashboard extends IPSModule
         if (!$force && $this->GetBuffer('tx_' . $key) === $payload) {
             return;
         }
-        $topic = $this->baseTopic() . '/state/' . $key;
+        if ($this->sendRetained($this->baseTopic() . '/state/' . $key, $payload)) {
+            $this->SetBuffer('tx_' . $key, $payload);
+        }
+    }
+
+    private function sendRetained(string $topic, string $payload): bool
+    {
         if (!$this->HasActiveParent()) {
             $this->SendDebug('TX', 'Kein aktiver Parent, verworfen: ' . $topic . ' = ' . $payload, 0);
-            return;
+            return false;
         }
-        $this->SetBuffer('tx_' . $key, $payload);
         $this->SendDebug('TX', $topic . ' = ' . $payload, 0);
         $this->SendDataToParent(json_encode([
             'DataID'           => self::TX,
@@ -221,6 +345,7 @@ class ColorKitDashboard extends IPSModule
             'Topic'            => $topic,
             'Payload'          => mb_convert_encoding($payload, 'UTF-8', 'ISO-8859-1'),
         ], JSON_UNESCAPED_SLASHES));
+        return true;
     }
 
     private function pressButton(string $key, string $payload): void
