@@ -254,11 +254,11 @@ $sent = layouts($p);
 $p->sent = [];
 assert($sent[0] === ['colorkit/pages', '["Start"]']);
 assert($sent[1][0] === 'colorkit/layout/0');
-assert($sent[1][1] === '[{"t":"tile","k":"hp_flow","l":"WP Vorlauf","u":"°C","d":1},'
-    . '{"t":"tile","k":"hp_mode","l":"WP Modus","u":"","d":-1,"c":[["Standby","EF6C00"],["Aus","C62828"],["Ein","2E7D32"]]},'
-    . '{"t":"tile","k":"battery_soc","l":"Akku","u":"%","d":0},'
-    . '{"t":"tile","k":"eigener_key","l":"eigener_key","u":"","d":-1},'
-    . '{"t":"btn","k":"dhw_boost","l":"WW Boost"}]');
+assert($sent[1][1] === '[{"t":"tile","k":"hp_flow","l":"WP Vorlauf","u":"°C","d":1,"x":0,"y":0},'
+    . '{"t":"tile","k":"hp_mode","l":"WP Modus","u":"","d":-1,"c":[["Standby","EF6C00"],["Aus","C62828"],["Ein","2E7D32"]],"x":1,"y":0},'
+    . '{"t":"tile","k":"battery_soc","l":"Akku","u":"%","d":0,"v":"arc","m":100,"x":2,"y":0},'
+    . '{"t":"tile","k":"eigener_key","l":"eigener_key","u":"","d":-1,"x":3,"y":0},'
+    . '{"t":"btn","k":"dhw_boost","l":"WW Boost","x":0,"y":1}]');
 // Nicht genutzte Seiten werden geleert, Werte kommen nach den Layouts
 foreach ([1, 2, 3, 4] as $i) {
     assert($sent[1 + $i] === ["colorkit/layout/$i", '']);
@@ -281,8 +281,8 @@ $p->PublishAll();
 $sent = layouts($p);
 $p->sent = [];
 assert($sent[0][1] === '["Start","Energie"]');
-assert($sent[1][1] === '[{"t":"tile","k":"pv_power","l":"PV","u":"W","d":0},{"t":"tile","k":"weg","l":"weg","u":"","d":-1}]');
-assert($sent[2][1] === '[{"t":"tile","k":"wb","l":"Wallbox","u":"kW","d":2,"c":[["Laedt","2E7D32"],["Fehler","FF0000"]]},{"t":"btn","k":"licht","l":"Licht"}]');
+assert($sent[1][1] === '[{"t":"tile","k":"pv_power","l":"PV","u":"W","d":0,"x":0,"y":0},{"t":"tile","k":"weg","l":"weg","u":"","d":-1,"x":1,"y":0}]');
+assert($sent[2][1] === '[{"t":"tile","k":"wb","l":"Wallbox","u":"kW","d":2,"c":[["Laedt","2E7D32"],["Fehler","FF0000"]],"x":0,"y":0},{"t":"btn","k":"licht","l":"Licht","x":1,"y":0}]');
 assert($sent[3] === ['colorkit/layout/2', '']);
 assert(in_array('colorkit/state/weg', array_column($sent, 0), true));
 
@@ -359,7 +359,7 @@ $d->props['Buttons'] = json_encode([
 $d->PublishAll();
 $s = array_column(layouts($d), 1, 0);
 $l = json_decode($s['colorkit/layout/0'], true);
-assert($l[0] === ['t' => 'dim', 'k' => 'f', 'l' => 'LED Büro']);
+assert($l[0] === ['t' => 'dim', 'k' => 'f', 'l' => 'LED Büro', 'x' => 0, 'y' => 0]);
 assert($l[4]['t'] === 'btn');
 assert($s['colorkit/state/f'] === '50' && $s['colorkit/state/i'] === '100' && $s['colorkit/state/n'] === '40' && $s['colorkit/state/b'] === '100');
 assert($s['colorkit/state/alt'] === '1');
@@ -372,5 +372,101 @@ rx($d, 'colorkit/cmd/n', '999');
 assert($vars[903][0] === 100);
 rx($d, 'colorkit/cmd/b', '0');
 assert($vars[904][0] === false);
+
+// ===== Groessen, Anzeigen, Positionen =====
+function page0(ColorKitDashboard $m): array
+{
+    $s = array_column(layouts($m), 1, 0);
+    $m->sent = [];
+    return json_decode($s['colorkit/layout/0'], true);
+}
+function slots(array $l): array
+{
+    return array_combine(array_column($l, 'k'), array_map(fn ($i) => [$i['x'], $i['y']], $l));
+}
+$g = new ColorKitDashboard();
+$g->Create();
+$g->active = true;
+$vars[950] = [68, VARIABLETYPE_INTEGER, 0, 1, ''];
+$g->props['Pages'] = json_encode([['Name' => 'Start']]);
+$g->props['Buttons'] = '[]';
+
+// Alte Zeilen: keine neuen Felder ausser x/y, battery_soc ist Rundanzeige mit Max 100
+$g->props['Tiles'] = json_encode([
+    ['Key' => 'pv_power', 'VariableID' => 950, 'Factor' => 1],
+    ['Key' => 'battery_soc', 'VariableID' => 950, 'Factor' => 1],
+]);
+$g->PublishAll();
+$l = page0($g);
+assert($l[0] == ['t' => 'tile', 'k' => 'pv_power', 'l' => 'PV', 'u' => 'W', 'd' => 0, 'x' => 0, 'y' => 0]);
+assert($l[1] == ['t' => 'tile', 'k' => 'battery_soc', 'l' => 'Akku', 'u' => '%', 'd' => 0, 'v' => 'arc', 'm' => 100, 'x' => 1, 'y' => 0]);
+
+// Groesse, Balken, Max-Regeln, Schreibweise
+$g->props['Tiles'] = json_encode([
+    ['Key' => 'a', 'VariableID' => 950, 'Factor' => 1, 'Size' => ' 2X2 ', 'Display' => 'Balken', 'Max' => '10000'],
+    ['Key' => 'b', 'VariableID' => 950, 'Factor' => 1, 'Size' => '3x1', 'Display' => 'Rundanzeige', 'Max' => 'abc'],
+    ['Key' => 'c', 'VariableID' => 950, 'Factor' => 1, 'Display' => 'Rundanzeige', 'Max' => '-5'],
+    ['Key' => 'd', 'VariableID' => 950, 'Factor' => 1, 'Display' => 'Balken', 'Max' => '0.5'],
+    ['Key' => 'e', 'VariableID' => 950, 'Factor' => 1, 'Display' => 'Zahl', 'Max' => '50'],
+]);
+$g->PublishAll();
+$l = page0($g);
+assert($l[0] == ['t' => 'tile', 'k' => 'a', 'l' => 'a', 'u' => '', 'd' => -1, 'v' => 'bar', 'm' => 10000, 's' => '2x2', 'x' => 0, 'y' => 0]);
+assert(!isset($l[1]['s']) && $l[1]['m'] === 100);
+assert($l[2]['m'] === 100);
+assert($l[3]['m'] === 0.5);
+assert(!isset($l[4]['v']) && !isset($l[4]['m']));
+assert(slots($l) === ['a' => [0, 0], 'b' => [2, 0], 'c' => [3, 0], 'd' => [2, 1], 'e' => [3, 1]]);
+
+// Seite " - ": nicht im Layout, Wert wird gesendet
+$g->props['Tiles'] = json_encode([
+    ['Key' => 'versteckt', 'VariableID' => 950, 'Factor' => 1, 'Page' => ' - '],
+    ['Key' => 'sichtbar', 'VariableID' => 950, 'Factor' => 1],
+]);
+$g->PublishAll();
+$s = array_column(layouts($g), 1, 0);
+$g->sent = [];
+$l = json_decode($s['colorkit/layout/0'], true);
+assert(count($l) === 1 && $l[0]['k'] === 'sichtbar');
+assert($s['colorkit/state/versteckt'] === '68');
+
+// Platzierung: 2x2 + 1x1 passen, 4x3 nicht mehr, folgendes 1x1 schon, Buttons mit Groesse
+$g->props['Tiles'] = json_encode([
+    ['Key' => 'gross', 'VariableID' => 950, 'Factor' => 1, 'Size' => '2x2'],
+    ['Key' => 'voll', 'VariableID' => 950, 'Factor' => 1, 'Size' => '4x3'],
+    ['Key' => 'klein', 'VariableID' => 950, 'Factor' => 1],
+]);
+$g->props['Buttons'] = json_encode([
+    ['Key' => 'breit', 'VariableID' => 0, 'ScriptID' => 0, 'Size' => '4x1'],
+    ['Key' => 'zuviel', 'VariableID' => 0, 'ScriptID' => 0, 'Size' => '4x1'],
+]);
+$g->PublishAll();
+$l = page0($g);
+assert(slots($l) === ['gross' => [0, 0], 'klein' => [2, 0], 'breit' => [0, 2]]);
+assert($l[2]['s'] === '4x1');
+
+// 4x3 allein fuellt die Seite, danach passt nichts mehr
+$g->props['Tiles'] = json_encode([
+    ['Key' => 'voll', 'VariableID' => 950, 'Factor' => 1, 'Size' => '4x3'],
+    ['Key' => 'klein', 'VariableID' => 950, 'Factor' => 1],
+]);
+$g->props['Buttons'] = '[]';
+$g->PublishAll();
+assert(array_column(page0($g), 'k') === ['voll']);
+
+// Feste Positionen: zuerst gesetzt, belegt/Rand/halb angegeben -> automatisch
+$g->props['Tiles'] = json_encode([
+    ['Key' => 'auto1', 'VariableID' => 950, 'Factor' => 1],
+    ['Key' => 'fest', 'VariableID' => 950, 'Factor' => 1, 'Column' => '1', 'Row' => '1'],
+    ['Key' => 'fest2', 'VariableID' => 950, 'Factor' => 1, 'Column' => 1, 'Row' => 1],
+    ['Key' => 'rand', 'VariableID' => 950, 'Factor' => 1, 'Size' => '2x2', 'Column' => '4', 'Row' => '1'],
+    ['Key' => 'halb', 'VariableID' => 950, 'Factor' => 1, 'Column' => '2'],
+]);
+$g->props['Buttons'] = json_encode([
+    ['Key' => 'unten', 'VariableID' => 0, 'ScriptID' => 0, 'Size' => '2x1', 'Column' => '3', 'Row' => '3'],
+]);
+$g->PublishAll();
+$l = page0($g);
+assert(slots($l) === ['auto1' => [1, 0], 'fest' => [0, 0], 'fest2' => [2, 0], 'rand' => [0, 1], 'halb' => [3, 0], 'unten' => [2, 2]]);
 
 echo "OK\n";

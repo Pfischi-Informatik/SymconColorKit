@@ -36,7 +36,13 @@ class ColorKitDashboard extends IPSModule
     ];
 
     private const MAX_PAGES = 5;
-    private const MAX_ITEMS = 12;
+    private const COLS = 4;
+    private const ROWS = 3;
+    // Groesse => [Breite, Hoehe] in Plaetzen
+    private const SIZES = ['1x1' => [1, 1], '2x1' => [2, 1], '2x2' => [2, 2], '4x1' => [4, 1], '4x2' => [4, 2], '4x3' => [4, 3]];
+    private const DISPLAYS = ['Rundanzeige' => 'arc', 'Balken' => 'bar'];
+    // Key => [Darstellung, Maximum]
+    private const DISPLAY_DEFAULTS = ['battery_soc' => ['Rundanzeige', 100]];
     private const MAX_LAYOUT_BYTES = 4096;
 
     // Key => [Titel, Einheit, Nachkommastellen, Farbregeln]
@@ -181,7 +187,7 @@ class ColorKitDashboard extends IPSModule
 
     private function layouts(array $pages): array
     {
-        $layouts = array_fill(0, count($pages), []);
+        $entries = array_fill(0, count($pages), []);
         foreach ($this->tileGroups() as $key => $group) {
             $key = (string) $key;
             $row = $group[0];
@@ -198,21 +204,36 @@ class ColorKitDashboard extends IPSModule
             if (count($colors) > 0) {
                 $item['c'] = $colors;
             }
-            $this->addItem($layouts, $pages, $row, $item);
+            $displayDefault = self::DISPLAY_DEFAULTS[$key] ?? ['Zahl', 100];
+            $display = ((string) ($row['Display'] ?? '')) ?: $displayDefault[0];
+            if (isset(self::DISPLAYS[$display])) {
+                $max = trim((string) ($row['Max'] ?? ''));
+                $item['v'] = self::DISPLAYS[$display];
+                $item['m'] = is_numeric($max) && $max + 0 > 0 ? $max + 0 : $displayDefault[1];
+            }
+            $this->addItem($entries, $pages, $row, $item);
         }
         foreach ($this->rows('Buttons') as $row) {
             if ($row['Key'] !== '') {
                 $label = ($row['Label'] ?? '') ?: (self::BUTTON_LABELS[$row['Key']] ?? $row['Key']);
                 $type = ($row['Type'] ?? '') === 'Dimmer' ? 'dim' : 'btn';
-                $this->addItem($layouts, $pages, $row, ['t' => $type, 'k' => $row['Key'], 'l' => $label]);
+                $this->addItem($entries, $pages, $row, ['t' => $type, 'k' => $row['Key'], 'l' => $label]);
             }
+        }
+        $layouts = [];
+        foreach ($entries as $index => $list) {
+            $layouts[$index] = $this->placeAll($list, $pages[$index]);
         }
         return $layouts;
     }
 
-    private function addItem(array &$layouts, array $pages, array $row, array $item): void
+    // Zeile pruefen und mit Groesse und Wunschposition vormerken; platziert wird in placeAll()
+    private function addItem(array &$entries, array $pages, array $row, array $item): void
     {
         $name = trim((string) ($row['Page'] ?? 'Start'));
+        if ($name === '-') {
+            return;                     // nur senden, nicht anzeigen
+        }
         $index = array_search($name, $pages, true);
         if ($index === false) {
             $index = 0;
@@ -220,11 +241,91 @@ class ColorKitDashboard extends IPSModule
                 $this->SendDebug('Seiten', $item['k'] . ': Seite ' . $name . ' gibt es nicht, nehme ' . $pages[0], 0);
             }
         }
-        if (count($layouts[$index]) >= self::MAX_ITEMS) {
-            $this->SendDebug('Seiten', $item['k'] . ': Seite ' . $pages[$index] . ' ist voll', 0);
-            return;
+        $size = strtolower(str_replace(' ', '', (string) ($row['Size'] ?? '')));
+        if ($size === '') {
+            $size = '1x1';
+        } elseif (!isset(self::SIZES[$size])) {
+            $this->SendDebug('Seiten', $item['k'] . ': Groesse ' . $size . ' unbekannt, nehme 1x1', 0);
+            $size = '1x1';
         }
-        $layouts[$index][] = $item;
+        if ($size !== '1x1') {
+            $item['s'] = $size;
+        }
+        $column = trim((string) ($row['Column'] ?? ''));
+        $line = trim((string) ($row['Row'] ?? ''));
+        $at = null;
+        if (ctype_digit($column) && ctype_digit($line)) {
+            $at = [(int) $column - 1, (int) $line - 1];
+        } elseif ($column !== '' || $line !== '') {
+            $this->SendDebug('Seiten', $item['k'] . ': Spalte und Zeile unvollstaendig, platziere automatisch', 0);
+        }
+        $entries[$index][] = ['item' => $item, 'size' => self::SIZES[$size], 'at' => $at];
+    }
+
+    // Erst feste Positionen, dann der Rest zeilenweise von oben links (wie die Firmware ohne x/y)
+    private function placeAll(array $list, string $page): array
+    {
+        $grid = array_fill(0, self::COLS * self::ROWS, false);
+        $placed = [];
+        foreach ($list as $i => $e) {
+            if ($e['at'] === null) {
+                continue;
+            }
+            [$x, $y] = $e['at'];
+            if (self::fits($grid, $x, $y, ...$e['size'])) {
+                self::mark($grid, $x, $y, ...$e['size']);
+                $placed[$i] = [$x, $y];
+            } else {
+                $this->SendDebug('Seiten', $e['item']['k'] . ': Position belegt oder ausserhalb, platziere automatisch', 0);
+            }
+        }
+        foreach ($list as $i => $e) {
+            if (isset($placed[$i])) {
+                continue;
+            }
+            [$w, $h] = $e['size'];
+            for ($p = 0; $p < self::COLS * self::ROWS && !isset($placed[$i]); $p++) {
+                $x = $p % self::COLS;
+                $y = intdiv($p, self::COLS);
+                if (self::fits($grid, $x, $y, $w, $h)) {
+                    self::mark($grid, $x, $y, $w, $h);
+                    $placed[$i] = [$x, $y];
+                }
+            }
+            if (!isset($placed[$i])) {
+                $this->SendDebug('Seiten', $e['item']['k'] . ': kein Platz mehr auf Seite ' . $page, 0);
+            }
+        }
+        ksort($placed);
+        $out = [];
+        foreach ($placed as $i => [$x, $y]) {
+            $out[] = $list[$i]['item'] + ['x' => $x, 'y' => $y];
+        }
+        return $out;
+    }
+
+    private static function fits(array $grid, int $x, int $y, int $w, int $h): bool
+    {
+        if ($x < 0 || $y < 0 || $x + $w > self::COLS || $y + $h > self::ROWS) {
+            return false;
+        }
+        for ($dy = 0; $dy < $h; $dy++) {
+            for ($dx = 0; $dx < $w; $dx++) {
+                if ($grid[($y + $dy) * self::COLS + $x + $dx]) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static function mark(array &$grid, int $x, int $y, int $w, int $h): void
+    {
+        for ($dy = 0; $dy < $h; $dy++) {
+            for ($dx = 0; $dx < $w; $dx++) {
+                $grid[($y + $dy) * self::COLS + $x + $dx] = true;
+            }
+        }
     }
 
     private function parseColors(string $rules): array

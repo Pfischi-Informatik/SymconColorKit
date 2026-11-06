@@ -59,7 +59,7 @@ function page0(ColorKitDashboard $m): array
     $m->sent = [];
     return json_decode($s['colorkit/layout/0'], true);
 }
-function pos(array $l): array
+function slots(array $l): array
 {
     return array_combine(array_column($l, 'k'), array_map(fn ($i) => [$i['x'], $i['y']], $l));
 }
@@ -95,7 +95,7 @@ assert(!isset($l[1]['s']) && $l[1]['m'] === 100);
 assert($l[2]['m'] === 100);
 assert($l[3]['m'] === 0.5);
 assert(!isset($l[4]['v']) && !isset($l[4]['m']));
-assert(pos($l) === ['a' => [0, 0], 'b' => [2, 0], 'c' => [3, 0], 'd' => [2, 1], 'e' => [3, 1]]);
+assert(slots($l) === ['a' => [0, 0], 'b' => [2, 0], 'c' => [3, 0], 'd' => [2, 1], 'e' => [3, 1]]);
 
 // Seite " - ": nicht im Layout, Wert wird gesendet
 $g->props['Tiles'] = json_encode([
@@ -121,7 +121,7 @@ $g->props['Buttons'] = json_encode([
 ]);
 $g->PublishAll();
 $l = page0($g);
-assert(pos($l) === ['gross' => [0, 0], 'klein' => [2, 0], 'breit' => [0, 2]]);
+assert(slots($l) === ['gross' => [0, 0], 'klein' => [2, 0], 'breit' => [0, 2]]);
 assert($l[2]['s'] === '4x1');
 
 // 4x3 allein fuellt die Seite, danach passt nichts mehr
@@ -146,7 +146,7 @@ $g->props['Buttons'] = json_encode([
 ]);
 $g->PublishAll();
 $l = page0($g);
-assert(pos($l) === ['auto1' => [1, 0], 'fest' => [0, 0], 'fest2' => [2, 0], 'rand' => [0, 1], 'halb' => [3, 0], 'unten' => [2, 2]]);
+assert(slots($l) === ['auto1' => [1, 0], 'fest' => [0, 0], 'fest2' => [2, 0], 'rand' => [0, 1], 'halb' => [3, 0], 'unten' => [2, 2]]);
 
 ```
 

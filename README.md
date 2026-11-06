@@ -39,7 +39,14 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
   Aktion hat, sonst `SetValue`). Ein Skript wird danach mit `$_IPS['KEY']`, `$_IPS['VALUE']` und `$_IPS['SENDER']` = `ColorKit` gestartet.
 
 - **Dimmer**: In der Button-Liste Typ `Dimmer` waehlen. Das Display zeigt einen Regler von 0 bis 100 % und sendet den Wert beim Loslassen. Er wird auf den Bereich des Variablenprofils umgerechnet (ohne Profil 0 bis 100). Bool-Variablen: 0 % = aus, sonst an.
-- **Seiten**: Bis zu 5 Seiten mit je 12 Plaetzen. Die Plaetze fuellen sich in Reihenfolge der Listen, zuerst Kacheln, dann Buttons. Die Reihenfolge aenderst du per Drag & Drop in den Listen.
+- **Seiten**: Bis zu 5 Seiten mit je 4 x 3 Plaetzen. Die Elemente kommen in Reihenfolge der Listen (zuerst Kacheln, dann
+  Buttons) auf den ersten freien Platz, an dem sie ganz passen. Was nicht mehr passt, fehlt (Debug-Meldung). Die
+  Reihenfolge aenderst du per Drag & Drop in den Listen. Seite `-` zeigt nichts an, der Wert wird trotzdem gesendet.
+- **Groesse**: `1x1` bis `4x3` (Breite x Hoehe in Plaetzen, `4x3` = ganze Seite). Ab Hoehe 2 ist der Wert groesser.
+- **Spalte / Zeile**: linke obere Ecke (Spalte 1-4, Zeile 1-3). Solche Elemente werden zuerst gesetzt, alle anderen
+  fuellen die freien Plaetze. Ist die Position belegt oder ragt das Element ueber den Rand, wird es automatisch platziert.
+- **Darstellung**: `Zahl`, `Rundanzeige` oder `Balken` mit **Maximum** (leer = 100). Standard: `battery_soc` als
+  Rundanzeige mit Maximum 100. Werte unter 0 oder ueber dem Maximum werden am Rand angezeigt.
   Titel, Einheit und Farben stellen Sie je Zeile ein, leer bedeutet Standardwert. Farben: `Text=Farbe;Text=Farbe` mit
   rot, orange, gruen, blau, grau oder 6 Hex-Stellen. `battery_soc` ist eine normale Kachel.
 - Nach dem Update des Moduls den Symcon-Dienst neu starten, damit die neue Eigenschaft `Pages` angelegt wird.

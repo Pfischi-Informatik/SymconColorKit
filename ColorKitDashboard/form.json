@@ -65,7 +65,32 @@
                                 ]
                             }
                         },
-                        { "name": "Colors", "caption": "Farben", "width": "220px", "add": "", "edit": { "type": "ValidationTextBox" } }
+                        { "name": "Colors", "caption": "Farben", "width": "220px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        {
+                            "name": "Size", "caption": "Groesse", "width": "90px", "add": "1x1",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "1x1", "value": "1x1" }, { "caption": "2x1", "value": "2x1" }, { "caption": "2x2", "value": "2x2" },
+                                { "caption": "4x1", "value": "4x1" }, { "caption": "4x2", "value": "4x2" }, { "caption": "4x3 (ganze Seite)", "value": "4x3" } ] }
+                        },
+                        {
+                            "name": "Display", "caption": "Darstellung", "width": "130px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "Standard", "value": "" }, { "caption": "Zahl", "value": "Zahl" },
+                                { "caption": "Rundanzeige", "value": "Rundanzeige" }, { "caption": "Balken", "value": "Balken" } ] }
+                        },
+                        { "name": "Max", "caption": "Maximum", "width": "90px", "add": "", "edit": { "type": "ValidationTextBox", "validate": "^(\\d+(\\.\\d+)?)?$" } },
+                        {
+                            "name": "Column", "caption": "Spalte", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" }, { "caption": "4", "value": "4" } ] }
+                        },
+                        {
+                            "name": "Row", "caption": "Zeile", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" } ] }
+                        }
                     ]
                 }
             ]
@@ -91,7 +116,25 @@
                         },
                         { "name": "Label", "caption": "Beschriftung", "width": "150px", "add": "", "edit": { "type": "ValidationTextBox" } },
                         { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
-                        { "name": "ScriptID", "caption": "Skript", "width": "300px", "add": 0, "edit": { "type": "SelectScript" } }
+                        { "name": "ScriptID", "caption": "Skript", "width": "300px", "add": 0, "edit": { "type": "SelectScript" } },
+                        {
+                            "name": "Size", "caption": "Groesse", "width": "90px", "add": "1x1",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "1x1", "value": "1x1" }, { "caption": "2x1", "value": "2x1" }, { "caption": "2x2", "value": "2x2" },
+                                { "caption": "4x1", "value": "4x1" }, { "caption": "4x2", "value": "4x2" }, { "caption": "4x3 (ganze Seite)", "value": "4x3" } ] }
+                        },
+                        {
+                            "name": "Column", "caption": "Spalte", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" }, { "caption": "4", "value": "4" } ] }
+                        },
+                        {
+                            "name": "Row", "caption": "Zeile", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" } ] }
+                        }
                     ]
                 }
             ]
