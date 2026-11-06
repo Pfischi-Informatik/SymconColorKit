@@ -88,6 +88,7 @@ class ColorKitDashboard extends IPSModule
         $this->RegisterPropertyString('Charts', '[]');
 
         $this->RegisterAttributeString('RegisteredVariables', '[]');
+        $this->RegisterAttributeString('ChartKeys', '[]');
 
         $this->RegisterTimer('Republish', 0, 'CKD_PublishAll($_IPS[\'TARGET\']);');
         $this->RegisterTimer('Charts', 0, 'CKD_PublishCharts($_IPS[\'TARGET\']);');
@@ -175,7 +176,14 @@ class ColorKitDashboard extends IPSModule
     public function PublishCharts(): void
     {
         $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION;
-        foreach ($this->chartGroups() as $key => $group) {
+        $groups = $this->chartGroups();
+        $keys = array_map('strval', array_keys($groups));
+        // Entfernte Diagramme: retained Nachricht loeschen, sonst belegt sie Platz im Display
+        foreach (array_diff(json_decode($this->ReadAttributeString('ChartKeys'), true) ?: [], $keys) as $old) {
+            $this->sendRetained($this->baseTopic() . '/chart/' . $old, '');
+        }
+        $this->WriteAttributeString('ChartKeys', json_encode($keys));
+        foreach ($groups as $key => $group) {
             $payload = json_encode($this->chartData($group), $flags);
             if (strlen($payload) > self::MAX_LAYOUT_BYTES) {
                 $this->SendDebug('Diagramme', $key . ' ist zu gross und wird nicht gesendet', 0);
@@ -287,7 +295,8 @@ class ColorKitDashboard extends IPSModule
                 $values[] = null;
                 continue;
             }
-            $value = $level !== 5 ? $sum[$i] : ($counter ? $sum[$i] * 4 : $sum[$i] / $n[$i]); // Viertel: kWh x 4 = kW
+            // Viertel: mittlerer 5-Min-Zuwachs x 12 = kW, auch wenn das laufende Viertel erst 1-2 Werte hat
+            $value = $level !== 5 ? $sum[$i] : $sum[$i] / $n[$i] * ($counter ? 12 : 1);
             $values[] = round($value * $factor, $decimals) + 0.0;
         }
         return $values;

@@ -62,6 +62,7 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
   Linie die Leistung in kW. Eine normale Leistungsvariable geht auch (Linie = Mittelwert, Saeulen = Mittelwert x
   Stunden). Gleicher Key in mehreren Zeilen = mehrere Reihen in einem Diagramm, Farben wie oben oder automatisch.
   Stellen 0 bis 3 (leer = 1), Faktor z.B. `0.001` fuer Wh -> kWh. Groesse leer oder `1x1` wird `4x3`.
+  Negative Werte zeigt nur die Linie, Saeulen beginnen bei 0.
 - Nach dem Update des Moduls den Symcon-Dienst neu starten, damit neue Eigenschaften (zuletzt `Charts`) angelegt werden.
 
 Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.

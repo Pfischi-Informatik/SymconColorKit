@@ -584,7 +584,7 @@ assert(array_column($h['s'], 'n') === ['PV', 'Var971', 'ohne']);
 assert(array_column($h['s'], 'c') === ['FFB300', '1565C0', 'C62828']);
 $pv = $h['s'][0]['v'];
 assert(count($pv) === intdiv(time() - $day, 900) + 1);
-assert($pv[0] === 2.4 && $pv[1] === 1.0 && ($pv[2] ?? null) === null, json_encode($pv));
+assert($pv[0] === 2.4 && $pv[1] === 3.0 && ($pv[2] ?? null) === null, json_encode($pv));
 assert($h['s'][1]['v'][0] === 6.0);           // Mittel 3 kW x Faktor 2, Stellen der ersten Zeile
 assert($h['s'][2]['v'] === []);
 
@@ -604,6 +604,21 @@ $months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt'
 assert(count($j['x']) === 12 && $j['x'][11] === $months[$mo - 1] && $j['x'][0] === $months[(int) date('n', mktime(0, 0, 0, $mo - 11, 1)) - 1]);
 assert($j['s'][0]['c'] === 'FFB300');         // ungueltige Farbe: Farbfolge
 assert($j['s'][0]['v'][11] === 20.0 && $j['s'][0]['v'][0] === 2.0 && $j['s'][0]['v'][5] === null);
+
+// Entfernter Key: retained Nachricht wird geloescht
+$c->props['Charts'] = json_encode([['Key' => 'woche', 'Type' => '7 Tage', 'VariableID' => 970, 'Factor' => 1]]);
+$c->ApplyChanges();
+$t = array_column(array_map(fn ($x) => [$x['Topic'], $x['Payload']], $c->sent), 1, 0);
+$c->sent = [];
+assert($t['colorkit/chart/heute'] === '' && $t['colorkit/chart/jahr'] === '' && $t['colorkit/chart/woche'] !== '');
+$c->PublishCharts();
+$t = array_column(array_map(fn ($x) => [$x['Topic'], $x['Payload']], $c->sent), 1, 0);
+$c->sent = [];
+assert(!isset($t['colorkit/chart/heute']));
+$c->props['Charts'] = json_encode([
+    ['Key' => 'heute', 'Type' => 'Heute', 'VariableID' => 970, 'Factor' => 1],
+    ['Key' => 'jahr', 'Type' => '12 Monate', 'VariableID' => 971, 'Factor' => 1],
+]);
 
 // Ohne Archiv: leere Reihen, kein Absturz
 $archiveIds = [];
