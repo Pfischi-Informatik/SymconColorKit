@@ -27,7 +27,8 @@ Keine neue Property, keine neue Spalte. In der Spalte Darstellung gibt es zusaet
 - Key `energy_flow` hat als Standard Darstellung `Energiefluss` und Titel `Energiefluss`. Eine Variable braucht die Zeile
   nicht.
 - Jede andere Kachelzeile mit Darstellung `Energiefluss` erzeugt ebenfalls ein Fluss-Element.
-- Empfohlene Groesse `4x3`, mindestens `4x2`. Kleiner zeigt die Firmware einen Hinweis statt des Flusses.
+- Groesse `4x3`. Leer oder `1x1` (Formular-Standard) wird zu `4x3`. Kleiner zeigt die Firmware einen Hinweis statt des
+  Flusses (bei `4x2` waeren die Linien zu PV, Akku und WP kaum sichtbar).
 
 Knoten und ihre Keys (feste Zuordnung):
 

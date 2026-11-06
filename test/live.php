@@ -501,4 +501,11 @@ $l = json_decode(array_column(layouts($f), 1, 0)['colorkit/layout/0'], true);
 $f->sent = [];
 assert($l[0]['t'] === 'flow' && $l[0]['n'] === [] && $l[0]['l'] === 'zweiter');
 
+// Energiefluss ohne Groesse oder mit 1x1 (Formular-Standard) wird 4x3
+$f->props['Tiles'] = json_encode([['Key' => 'energy_flow', 'VariableID' => 0, 'Factor' => 1, 'Size' => '1x1']]);
+$f->PublishAll();
+$l = json_decode(array_column(layouts($f), 1, 0)['colorkit/layout/0'], true);
+$f->sent = [];
+assert($l[0]['s'] === '4x3');
+
 echo "OK\n";

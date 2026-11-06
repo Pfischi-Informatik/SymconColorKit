@@ -47,7 +47,7 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
   fuellen die freien Plaetze. Ist die Position belegt oder ragt das Element ueber den Rand, wird es automatisch platziert.
 - **Darstellung**: `Zahl`, `Rundanzeige` oder `Balken` mit **Maximum** (leer = 100). Standard: `battery_soc` als
   Rundanzeige mit Maximum 100. Werte unter 0 oder ueber dem Maximum werden am Rand angezeigt.
-- **Energiefluss**: Kachelzeile mit Key `energy_flow` (keine Variable noetig) und Groesse `4x3` oder `4x2`. Knoten
+- **Energiefluss**: Kachelzeile mit Key `energy_flow` (keine Variable noetig) und Groesse `4x3` (leer oder `1x1` wird automatisch `4x3`, kleiner zeigt nur einen Hinweis). Knoten
   erscheinen fuer `pv_power`, `grid_power` (+ = Bezug, - = Einspeisung), `house_power`, `battery_power` (+ = Laden,
   - = Entladen), `wallbox_power` und `hp_power`, sobald der Key in der Liste steht. Werte, die nur der Fluss braucht,
   auf Seite `-` legen. Falsches Vorzeichen mit Faktor `-1` drehen. Der Akku-Knoten zeigt `battery_soc` mit an.

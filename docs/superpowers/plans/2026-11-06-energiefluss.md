@@ -501,7 +501,7 @@ die echten Layouts und echte `state/`-Werte bis zum naechsten Senden durch Symco
 - [ ] **Step 3: Sichtpruefung**
 
 `flow`: PV gelb mit Punkt zum Haus, Netz "Einspeisung 800 W" gruen mit Punkt vom Haus zum Netz, Akku "Laden 68 %" gruen
-vom Haus weg, Wallbox "1.3 kW" blau vom Haus weg, WP grau ohne Punkt. Seite Klein: zwei Hinweise "mindestens 4x2".
+vom Haus weg, Wallbox "1.3 kW" blau vom Haus weg, WP grau ohne Punkt. Seite Klein: zwei Hinweise "Energiefluss braucht 4x3".
 `flow2`: PV grau, Netz "Bezug" rot zum Haus, Akku "Entladen 67 %" orange zum Haus, Wallbox grau, WP zeigt "abc" grau.
 Touch und Wischen reagieren normal.
 

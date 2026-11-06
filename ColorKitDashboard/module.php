@@ -268,6 +268,9 @@ class ColorKitDashboard extends IPSModule
             }
         }
         $size = strtolower(str_replace(' ', '', (string) ($row['Size'] ?? '')));
+        if ($item['t'] === 'flow' && ($size === '' || $size === '1x1')) {
+            $size = '4x3';              // Formular-Standard 1x1 waere fuer den Fluss zu klein
+        }
         if ($size === '') {
             $size = '1x1';
         } elseif (!isset(self::SIZES[$size])) {
