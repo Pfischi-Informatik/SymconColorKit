@@ -29,6 +29,17 @@ elif mode == "sizes":
          {"t": "tile", "k": "s_pv", "l": "darf nicht erscheinen"}],
     ]
     states = {"s_soc": "68", "s_pv": "3200", "s_klein": "130", "s_neg": "-50", "s_dim": "40", "s_btn": "1"}
+elif mode in ("flow", "flow2"):
+    nodes = [["pv_power", "PV", "W", 0], ["grid_power", "Netz", "W", 0], ["house_power", "Haus", "W", 0],
+             ["battery_power", "Akku", "W", 0], ["wallbox_power", "Wallbox", "kW", 1], ["hp_power", "WP", "W", 0]]
+    pages = ["Fluss", "Klein"]
+    layouts = [[{"t": "flow", "k": "energy_flow", "l": "Energiefluss", "s": "4x3", "x": 0, "y": 0, "n": nodes}],
+               [{"t": "flow", "k": "energy_flow", "l": "Energiefluss", "s": "2x2", "x": 0, "y": 0, "n": nodes},
+                {"t": "flow", "k": "energy_flow", "l": "Energiefluss", "s": "4x1", "x": 0, "y": 2, "n": nodes[:1]}]]
+    states = ({"pv_power": "3200", "grid_power": "-800", "house_power": "1100", "battery_power": "400",
+               "battery_soc": "68", "wallbox_power": "1.3", "hp_power": "0"} if mode == "flow" else
+              {"pv_power": "0", "grid_power": "1500", "house_power": "1900", "battery_power": "-400",
+               "battery_soc": "67", "wallbox_power": "0", "hp_power": "abc"})
 else:
     pages, layouts = ["Start"], [[]]
 
@@ -40,7 +51,11 @@ c.publish("colorkit/pages", json.dumps(pages), retain=True)
 for n in range(5):
     c.publish(f"colorkit/layout/{n}", json.dumps(layouts[n]) if n < len(layouts) else "", retain=True).wait_for_publish()
     print(n, "gesendet")
-for k, v in (states if mode == "sizes" else {}).items():
+for k, v in (states if mode in ("sizes", "flow", "flow2") else {}).items():
     c.publish(f"colorkit/state/{k}", v).wait_for_publish()
+for _ in range(90 if mode in ("flow", "flow2") else 0):
+    time.sleep(1)
+    for k, v in states.items():
+        c.publish(f"colorkit/state/{k}", v)
 time.sleep(1)
 c.disconnect()
