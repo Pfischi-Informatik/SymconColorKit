@@ -1,5 +1,5 @@
 """Spielt Seiten direkt per MQTT ein, ohne Symcon.
-Aufruf: uvx --from paho-mqtt python test/layout-sample.py HOST full|empty|small
+Aufruf: uvx --from paho-mqtt python test/layout-sample.py HOST full|empty|small|sizes|flow|flow2|chart
 Zugang aus den Umgebungsvariablen MQTT_USER und MQTT_PASS."""
 import json, os, sys, time
 import paho.mqtt.client as mqtt
@@ -40,6 +40,31 @@ elif mode in ("flow", "flow2"):
                "battery_soc": "68", "wallbox_power": "1.3", "hp_power": "0"} if mode == "flow" else
               {"pv_power": "0", "grid_power": "1500", "house_power": "1900", "battery_power": "-400",
                "battery_soc": "67", "wallbox_power": "0", "hp_power": "abc"})
+elif mode == "chart":
+    import math
+    pv = [round(max(0, 6 * math.sin((i - 28) / 48 * math.pi)), 2) for i in range(61)]        # bis 15:00
+    house = [round(0.4 + 0.3 * math.sin(i / 7) + (2.5 if 70 > i > 64 else 0), 2) for i in range(61)]
+    grid = [round(h - p, 2) for h, p in zip(house, pv)]
+    charts = {
+        "heute": {"t": "line", "u": "kW", "d": 1, "s": [{"n": "PV", "c": "FFB300", "v": pv},
+                                                        {"n": "Haus", "c": "1565C0", "v": house},
+                                                        {"n": "Netz", "c": "C62828", "v": grid[:40] + [None] * 5 + grid[45:]}]},
+        "woche": {"t": "bar", "u": "kWh", "d": 1, "x": ["Fr", "Sa", "So", "Mo", "Di", "Mi", "Do"],
+                  "s": [{"n": "PV", "c": "FFB300", "v": [21.4, 30.2, 8.1, None, 25, 27.5, 12.3]},
+                        {"n": "Haus", "c": "1565C0", "v": [11.2, 14, 16.5, 9.8, 10.1, 12, 6.4]}]},
+        "zwei": {"t": "bar", "u": "kWh", "d": 0, "x": [f"{d:02d}.10" for d in range(24, 32)] + [f"{d:02d}.11" for d in range(1, 7)],
+                 "s": [{"n": "Wallbox", "c": "2E7D32", "v": [0, 12, 0, 0, 22, 0, 5, 0, 0, 18, 0, 0, 7, 3]}]},
+        "jahr": {"t": "bar", "u": "kWh", "d": 0, "x": ["Dez", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov"],
+                 "s": [{"n": "PV", "c": "FFB300", "v": [120, 160, 310, 620, 900, 1250, 1480, 1390, 1010, 640, 330, 40]},
+                       {"n": "Bezug", "c": "C62828", "v": [610, 580, 450, 300, 180, 90, 60, 80, 150, 280, 470, 120]}]},
+    }
+    pages = ["Heute", "Woche", "Jahr", "Klein"]
+    layouts = [[{"t": "chart", "k": "heute", "l": "Leistung heute", "s": "4x3", "x": 0, "y": 0}],
+               [{"t": "chart", "k": "woche", "l": "7 Tage", "s": "4x3", "x": 0, "y": 0}],
+               [{"t": "chart", "k": "jahr", "l": "12 Monate", "s": "4x3", "x": 0, "y": 0}],
+               [{"t": "chart", "k": "zwei", "l": "Wallbox 14 Tage", "s": "4x2", "x": 0, "y": 0},
+                {"t": "chart", "k": "heute", "l": "Heute klein", "s": "2x1", "x": 0, "y": 2},
+                {"t": "chart", "k": "fehlt", "l": "ohne Daten", "s": "2x1", "x": 2, "y": 2}]]
 else:
     pages, layouts = ["Start"], [[]]
 
@@ -47,12 +72,19 @@ c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="colorkit-layout-tes
 c.username_pw_set(os.environ["MQTT_USER"], os.environ["MQTT_PASS"])
 c.connect(host, 1883, 30)
 c.loop_start()
+for k, v in (charts if mode == "chart" else {}).items():           # vor dem Layout: Firmware merkt sie sich
+    c.publish(f"colorkit/chart/{k}", json.dumps(v, ensure_ascii=False)).wait_for_publish()
 c.publish("colorkit/pages", json.dumps(pages), retain=True)
 for n in range(5):
     c.publish(f"colorkit/layout/{n}", json.dumps(layouts[n]) if n < len(layouts) else "", retain=True).wait_for_publish()
     print(n, "gesendet")
 for k, v in (states if mode in ("sizes", "flow", "flow2") else {}).items():
     c.publish(f"colorkit/state/{k}", v).wait_for_publish()
+for _ in range(18 if mode == "chart" else 0):                    # Symcon sendet alle 5 Min. sein Layout: 90 s halten
+    time.sleep(5)
+    c.publish("colorkit/pages", json.dumps(pages), retain=True)
+    for n, l in enumerate(layouts):
+        c.publish(f"colorkit/layout/{n}", json.dumps(l), retain=True)
 for _ in range(90 if mode in ("flow", "flow2") else 0):
     time.sleep(1)
     for k, v in states.items():
