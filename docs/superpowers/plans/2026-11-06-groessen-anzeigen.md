@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Elemente bekommen im Formular eine Groesse von 1x1 bis 4x3, Kacheln optional Rundanzeige oder Balken, Seite `-` sendet nur.
+**Goal:** Elemente bekommen im Formular Groesse (1x1 bis 4x3) und optional Spalte/Zeile, Kacheln Rundanzeige oder Balken, Seite `-` sendet nur.
 
-**Architecture:** Das Modul platziert die Elemente per First-Fit im 4x3-Raster je Seite, verwirft was nicht passt und
-schreibt `s`, `v`, `m` nur bei Abweichung ins Layout-JSON. Die Firmware platziert nach derselben Regel, rechnet Pixelgroessen
-aus der Belegung und baut `lv_arc`/`lv_bar` in die Kachel. Kein neues Topic, keine neue Property.
+**Architecture:** Das Modul platziert je Seite erst Elemente mit fester Spalte/Zeile, dann den Rest per First-Fit im
+4x3-Raster, verwirft was nicht passt und schreibt `x`/`y` immer, `s`, `v`, `m` nur bei Abweichung ins Layout-JSON. Die
+Firmware nimmt `x`/`y` (ohne sie: dieselbe Regel), rechnet Pixelgroessen und baut `lv_arc`/`lv_bar` in die Kachel. Kein neues Topic, keine neue Property.
 
 **Tech Stack:** PHP 8 (IP-Symcon 7.0 `IPSModule`), ESP32 Arduino mit PlatformIO, LVGL 8.3, ArduinoJson 7, PubSubClient.
 
@@ -19,18 +19,19 @@ aus der Belegung und baut `lv_arc`/`lv_bar` in die Kachel. Kein neues Topic, kei
 - Keine neue Property (kein Dienst-Neustart). Neue Spalten werden zur Laufzeit mit Standardwerten ergaenzt.
 - Groessen: `1x1`, `2x1`, `2x2`, `4x1`, `4x2`, `4x3`. Raster 4 Spalten x 3 Zeilen, hoechstens 5 Seiten.
 - Layout-JSON hoechstens 4096 Byte je Seite (bestehende Pruefung bleibt).
-- Felder `s`, `v`, `m` nur senden, wenn sie vom Standard abweichen (`1x1`, Zahl).
+- Felder `s`, `v`, `m` nur senden, wenn sie vom Standard abweichen (`1x1`, Zahl). `x`/`y` (ab 0) immer senden.
+- Formular: Spalte 1-4, Zeile 1-3 (ab 1), leer = automatisch.
 - Strings in PHP und JSON mit ae/oe/ue, Captions deutsch. Commits als Dominik Pfister <dominikpfister@hotmail.com>.
 - `library.json` build 10.
 - Wertschrift: 28 px bei Hoehe 1, 48 px ab Hoehe 2 (`font_de_48`, Fallback `lv_font_montserrat_48`).
 
 ## Review Focus
 
-1. Alte Zeilen ohne `Size`/`Display`/`Max`: Layout-JSON ist identisch zu vorher (keine Felder `s`/`v`/`m`). Test in Task 1.
+1. Alte Zeilen ohne `Size`/`Display`/`Max`/`Column`/`Row`: Layout wie vorher plus `x`/`y`, keine Felder `s`/`v`/`m`. Test in Task 1.
 2. `Max` leer, nicht numerisch oder <= 0: Standardwert je Key, sonst 100. Test in Task 1; Firmware begrenzt zusaetzlich.
 3. Ungueltige Groesse (`3x1`, `abc`) wird `1x1`, Schreibweise `2X2` und Leerzeichen werden akzeptiert. Test in Task 1.
 4. Seite ` - ` (mit Leerzeichen) ist versteckt, der Wert wird trotzdem gesendet. Test in Task 1.
-5. Ein `4x3` auf einer Seite, auf der schon etwas steht, passt nicht und wird uebersprungen; ein spaeteres 1x1 wird trotzdem gesetzt. Test in Task 1.
+5. Feste Position belegt, ueber dem Rand oder nur halb angegeben: automatisch platzieren statt verschwinden. Test in Task 1.
 
 ---
 
@@ -51,12 +52,16 @@ aus der Belegung und baut `lv_arc`/`lv_bar` in die Kachel. Kein neues Topic, kei
 In `test/live.php` direkt vor der letzten Zeile `echo "OK\n";` einfuegen:
 
 ```php
-// ===== Groessen und Anzeigen =====
+// ===== Groessen, Anzeigen, Positionen =====
 function page0(ColorKitDashboard $m): array
 {
     $s = array_column(layouts($m), 1, 0);
     $m->sent = [];
     return json_decode($s['colorkit/layout/0'], true);
+}
+function pos(array $l): array
+{
+    return array_combine(array_column($l, 'k'), array_map(fn ($i) => [$i['x'], $i['y']], $l));
 }
 $g = new ColorKitDashboard();
 $g->Create();
@@ -65,15 +70,15 @@ $vars[950] = [68, VARIABLETYPE_INTEGER, 0, 1, ''];
 $g->props['Pages'] = json_encode([['Name' => 'Start']]);
 $g->props['Buttons'] = '[]';
 
-// Alte Zeilen: keine neuen Felder, battery_soc ist Rundanzeige mit Max 100
+// Alte Zeilen: keine neuen Felder ausser x/y, battery_soc ist Rundanzeige mit Max 100
 $g->props['Tiles'] = json_encode([
     ['Key' => 'pv_power', 'VariableID' => 950, 'Factor' => 1],
     ['Key' => 'battery_soc', 'VariableID' => 950, 'Factor' => 1],
 ]);
 $g->PublishAll();
 $l = page0($g);
-assert($l[0] == ['t' => 'tile', 'k' => 'pv_power', 'l' => 'PV', 'u' => 'W', 'd' => 0]);
-assert($l[1] == ['t' => 'tile', 'k' => 'battery_soc', 'l' => 'Akku', 'u' => '%', 'd' => 0, 'v' => 'arc', 'm' => 100]);
+assert($l[0] == ['t' => 'tile', 'k' => 'pv_power', 'l' => 'PV', 'u' => 'W', 'd' => 0, 'x' => 0, 'y' => 0]);
+assert($l[1] == ['t' => 'tile', 'k' => 'battery_soc', 'l' => 'Akku', 'u' => '%', 'd' => 0, 'v' => 'arc', 'm' => 100, 'x' => 1, 'y' => 0]);
 
 // Groesse, Balken, Max-Regeln, Schreibweise
 $g->props['Tiles'] = json_encode([
@@ -85,11 +90,12 @@ $g->props['Tiles'] = json_encode([
 ]);
 $g->PublishAll();
 $l = page0($g);
-assert($l[0] == ['t' => 'tile', 'k' => 'a', 'l' => 'a', 'u' => '', 'd' => -1, 'v' => 'bar', 'm' => 10000, 's' => '2x2']);
+assert($l[0] == ['t' => 'tile', 'k' => 'a', 'l' => 'a', 'u' => '', 'd' => -1, 'v' => 'bar', 'm' => 10000, 's' => '2x2', 'x' => 0, 'y' => 0]);
 assert(!isset($l[1]['s']) && $l[1]['m'] === 100);
 assert($l[2]['m'] === 100);
 assert($l[3]['m'] === 0.5);
 assert(!isset($l[4]['v']) && !isset($l[4]['m']));
+assert(pos($l) === ['a' => [0, 0], 'b' => [2, 0], 'c' => [3, 0], 'd' => [2, 1], 'e' => [3, 1]]);
 
 // Seite " - ": nicht im Layout, Wert wird gesendet
 $g->props['Tiles'] = json_encode([
@@ -115,7 +121,7 @@ $g->props['Buttons'] = json_encode([
 ]);
 $g->PublishAll();
 $l = page0($g);
-assert(array_column($l, 'k') === ['gross', 'klein', 'breit']);
+assert(pos($l) === ['gross' => [0, 0], 'klein' => [2, 0], 'breit' => [0, 2]]);
 assert($l[2]['s'] === '4x1');
 
 // 4x3 allein fuellt die Seite, danach passt nichts mehr
@@ -125,14 +131,29 @@ $g->props['Tiles'] = json_encode([
 ]);
 $g->props['Buttons'] = '[]';
 $g->PublishAll();
+assert(array_column(page0($g), 'k') === ['voll']);
+
+// Feste Positionen: zuerst gesetzt, belegt/Rand/halb angegeben -> automatisch
+$g->props['Tiles'] = json_encode([
+    ['Key' => 'auto1', 'VariableID' => 950, 'Factor' => 1],
+    ['Key' => 'fest', 'VariableID' => 950, 'Factor' => 1, 'Column' => '1', 'Row' => '1'],
+    ['Key' => 'fest2', 'VariableID' => 950, 'Factor' => 1, 'Column' => 1, 'Row' => 1],
+    ['Key' => 'rand', 'VariableID' => 950, 'Factor' => 1, 'Size' => '2x2', 'Column' => '4', 'Row' => '1'],
+    ['Key' => 'halb', 'VariableID' => 950, 'Factor' => 1, 'Column' => '2'],
+]);
+$g->props['Buttons'] = json_encode([
+    ['Key' => 'unten', 'VariableID' => 0, 'ScriptID' => 0, 'Size' => '2x1', 'Column' => '3', 'Row' => '3'],
+]);
+$g->PublishAll();
 $l = page0($g);
-assert(array_column($l, 'k') === ['voll']);
+assert(pos($l) === ['auto1' => [1, 0], 'fest' => [0, 0], 'fest2' => [2, 0], 'rand' => [0, 1], 'halb' => [3, 0], 'unten' => [2, 2]]);
+
 ```
 
 - [ ] **Step 2: Tests laufen lassen, sie muessen scheitern**
 
 Run: `php -d zend.assertions=1 -d assert.exception=1 test/live.php`
-Expected: FAIL mit `AssertionError` an der ersten neuen Assertion (battery_soc ohne `v`).
+Expected: FAIL mit `AssertionError` an der ersten neuen Assertion (fehlendes `x`/`y`).
 
 - [ ] **Step 3: Konstanten in `module.php` ersetzen**
 
@@ -150,13 +171,12 @@ Expected: FAIL mit `AssertionError` an der ersten neuen Assertion (battery_soc o
 
 - [ ] **Step 4: `layouts()` und `addItem()` ersetzen**
 
-Die ganze Methode `layouts()` und die ganze Methode `addItem()` ersetzen durch:
+Die ganze Methode `layouts()` und die ganze Methode `addItem()` ersetzen durch (`placeAll`, `fits`, `mark` sind neu):
 
 ```php
     private function layouts(array $pages): array
     {
-        $layouts = array_fill(0, count($pages), []);
-        $grids = array_fill(0, count($pages), array_fill(0, self::COLS * self::ROWS, false));
+        $entries = array_fill(0, count($pages), []);
         foreach ($this->tileGroups() as $key => $group) {
             $key = (string) $key;
             $row = $group[0];
@@ -180,19 +200,24 @@ Die ganze Methode `layouts()` und die ganze Methode `addItem()` ersetzen durch:
                 $item['v'] = self::DISPLAYS[$display];
                 $item['m'] = is_numeric($max) && $max + 0 > 0 ? $max + 0 : $displayDefault[1];
             }
-            $this->addItem($layouts, $grids, $pages, $row, $item);
+            $this->addItem($entries, $pages, $row, $item);
         }
         foreach ($this->rows('Buttons') as $row) {
             if ($row['Key'] !== '') {
                 $label = ($row['Label'] ?? '') ?: (self::BUTTON_LABELS[$row['Key']] ?? $row['Key']);
                 $type = ($row['Type'] ?? '') === 'Dimmer' ? 'dim' : 'btn';
-                $this->addItem($layouts, $grids, $pages, $row, ['t' => $type, 'k' => $row['Key'], 'l' => $label]);
+                $this->addItem($entries, $pages, $row, ['t' => $type, 'k' => $row['Key'], 'l' => $label]);
             }
+        }
+        $layouts = [];
+        foreach ($entries as $index => $list) {
+            $layouts[$index] = $this->placeAll($list, $pages[$index]);
         }
         return $layouts;
     }
 
-    private function addItem(array &$layouts, array &$grids, array $pages, array $row, array $item): void
+    // Zeile pruefen und mit Groesse und Wunschposition vormerken; platziert wird in placeAll()
+    private function addItem(array &$entries, array $pages, array $row, array $item): void
     {
         $name = trim((string) ($row['Page'] ?? 'Start'));
         if ($name === '-') {
@@ -212,39 +237,84 @@ Die ganze Methode `layouts()` und die ganze Methode `addItem()` ersetzen durch:
             $this->SendDebug('Seiten', $item['k'] . ': Groesse ' . $size . ' unbekannt, nehme 1x1', 0);
             $size = '1x1';
         }
-        [$w, $h] = self::SIZES[$size];
-        if (!self::place($grids[$index], $w, $h)) {
-            $this->SendDebug('Seiten', $item['k'] . ': kein Platz mehr auf Seite ' . $pages[$index], 0);
-            return;
-        }
         if ($size !== '1x1') {
             $item['s'] = $size;
         }
-        $layouts[$index][] = $item;
+        $column = trim((string) ($row['Column'] ?? ''));
+        $line = trim((string) ($row['Row'] ?? ''));
+        $at = null;
+        if (ctype_digit($column) && ctype_digit($line)) {
+            $at = [(int) $column - 1, (int) $line - 1];
+        } elseif ($column !== '' || $line !== '') {
+            $this->SendDebug('Seiten', $item['k'] . ': Spalte und Zeile unvollstaendig, platziere automatisch', 0);
+        }
+        $entries[$index][] = ['item' => $item, 'size' => self::SIZES[$size], 'at' => $at];
     }
 
-    // Erster freier Platz zeilenweise von oben links, an dem das ganze Element passt (wie die Firmware)
-    private static function place(array &$grid, int $w, int $h): bool
+    // Erst feste Positionen, dann der Rest zeilenweise von oben links (wie die Firmware ohne x/y)
+    private function placeAll(array $list, string $page): array
     {
-        for ($y = 0; $y + $h <= self::ROWS; $y++) {
-            for ($x = 0; $x + $w <= self::COLS; $x++) {
-                $free = true;
-                for ($dy = 0; $dy < $h && $free; $dy++) {
-                    for ($dx = 0; $dx < $w && $free; $dx++) {
-                        $free = !$grid[($y + $dy) * self::COLS + $x + $dx];
-                    }
+        $grid = array_fill(0, self::COLS * self::ROWS, false);
+        $placed = [];
+        foreach ($list as $i => $e) {
+            if ($e['at'] === null) {
+                continue;
+            }
+            [$x, $y] = $e['at'];
+            if (self::fits($grid, $x, $y, ...$e['size'])) {
+                self::mark($grid, $x, $y, ...$e['size']);
+                $placed[$i] = [$x, $y];
+            } else {
+                $this->SendDebug('Seiten', $e['item']['k'] . ': Position belegt oder ausserhalb, platziere automatisch', 0);
+            }
+        }
+        foreach ($list as $i => $e) {
+            if (isset($placed[$i])) {
+                continue;
+            }
+            [$w, $h] = $e['size'];
+            for ($p = 0; $p < self::COLS * self::ROWS && !isset($placed[$i]); $p++) {
+                $x = $p % self::COLS;
+                $y = intdiv($p, self::COLS);
+                if (self::fits($grid, $x, $y, $w, $h)) {
+                    self::mark($grid, $x, $y, $w, $h);
+                    $placed[$i] = [$x, $y];
                 }
-                if ($free) {
-                    for ($dy = 0; $dy < $h; $dy++) {
-                        for ($dx = 0; $dx < $w; $dx++) {
-                            $grid[($y + $dy) * self::COLS + $x + $dx] = true;
-                        }
-                    }
-                    return true;
+            }
+            if (!isset($placed[$i])) {
+                $this->SendDebug('Seiten', $e['item']['k'] . ': kein Platz mehr auf Seite ' . $page, 0);
+            }
+        }
+        ksort($placed);
+        $out = [];
+        foreach ($placed as $i => [$x, $y]) {
+            $out[] = $list[$i]['item'] + ['x' => $x, 'y' => $y];
+        }
+        return $out;
+    }
+
+    private static function fits(array $grid, int $x, int $y, int $w, int $h): bool
+    {
+        if ($x < 0 || $y < 0 || $x + $w > self::COLS || $y + $h > self::ROWS) {
+            return false;
+        }
+        for ($dy = 0; $dy < $h; $dy++) {
+            for ($dx = 0; $dx < $w; $dx++) {
+                if ($grid[($y + $dy) * self::COLS + $x + $dx]) {
+                    return false;
                 }
             }
         }
-        return false;
+        return true;
+    }
+
+    private static function mark(array &$grid, int $x, int $y, int $w, int $h): void
+    {
+        for ($dy = 0; $dy < $h; $dy++) {
+            for ($dx = 0; $dx < $w; $dx++) {
+                $grid[($y + $dy) * self::COLS + $x + $dx] = true;
+            }
+        }
     }
 ```
 
@@ -277,7 +347,19 @@ ersetzen durch:
                                 { "caption": "Standard", "value": "" }, { "caption": "Zahl", "value": "Zahl" },
                                 { "caption": "Rundanzeige", "value": "Rundanzeige" }, { "caption": "Balken", "value": "Balken" } ] }
                         },
-                        { "name": "Max", "caption": "Maximum", "width": "90px", "add": "", "edit": { "type": "ValidationTextBox", "validate": "^(\\d+(\\.\\d+)?)?$" } }
+                        { "name": "Max", "caption": "Maximum", "width": "90px", "add": "", "edit": { "type": "ValidationTextBox", "validate": "^(\\d+(\\.\\d+)?)?$" } },
+                        {
+                            "name": "Column", "caption": "Spalte", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" }, { "caption": "4", "value": "4" } ] }
+                        },
+                        {
+                            "name": "Row", "caption": "Zeile", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" } ] }
+                        }
 ```
 
 Die Buttons-Zeile
@@ -295,6 +377,18 @@ ersetzen durch:
                             "edit": { "type": "Select", "options": [
                                 { "caption": "1x1", "value": "1x1" }, { "caption": "2x1", "value": "2x1" }, { "caption": "2x2", "value": "2x2" },
                                 { "caption": "4x1", "value": "4x1" }, { "caption": "4x2", "value": "4x2" }, { "caption": "4x3 (ganze Seite)", "value": "4x3" } ] }
+                        },
+                        {
+                            "name": "Column", "caption": "Spalte", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" }, { "caption": "4", "value": "4" } ] }
+                        },
+                        {
+                            "name": "Row", "caption": "Zeile", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" } ] }
                         }
 ```
 
@@ -305,6 +399,8 @@ In `README.md` die Zeile, die mit `- **Seiten**:` beginnt, ersetzen durch:
   Buttons) auf den ersten freien Platz, an dem sie ganz passen. Was nicht mehr passt, fehlt (Debug-Meldung). Die
   Reihenfolge aenderst du per Drag & Drop in den Listen. Seite `-` zeigt nichts an, der Wert wird trotzdem gesendet.
 - **Groesse**: `1x1` bis `4x3` (Breite x Hoehe in Plaetzen, `4x3` = ganze Seite). Ab Hoehe 2 ist der Wert groesser.
+- **Spalte / Zeile**: linke obere Ecke (Spalte 1-4, Zeile 1-3). Solche Elemente werden zuerst gesetzt, alle anderen
+  fuellen die freien Plaetze. Ist die Position belegt oder ragt das Element ueber den Rand, wird es automatisch platziert.
 - **Darstellung**: `Zahl`, `Rundanzeige` oder `Balken` mit **Maximum** (leer = 100). Standard: `battery_soc` als
   Rundanzeige mit Maximum 100. Werte unter 0 oder ueber dem Maximum werden am Rand angezeigt.
 ```
@@ -318,7 +414,7 @@ Expected: `ok` und `OK`.
 
 ```bash
 git add ColorKitDashboard/module.php ColorKitDashboard/form.json README.md library.json test/live.php
-git commit -m "Groesse, Rundanzeige, Balken und Seite - fuer Elemente, build 10"
+git commit -m "Groesse, Position, Rundanzeige, Balken und Seite - fuer Elemente, build 10"
 ```
 
 ---
@@ -505,20 +601,17 @@ static bool parseSize(const char* s, int& w, int& h) {
   return sscanf(s, "%dx%d", &w, &h) == 2 && w >= 1 && w <= COLS && h >= 1 && h <= ROWS;
 }
 
-// Erster freier Platz zeilenweise von oben links, an dem das ganze Element passt (wie das Modul)
-static bool place(bool* used, int w, int h, int& cx, int& cy) {
-  for (cy = 0; cy + h <= ROWS; cy++) {
-    for (cx = 0; cx + w <= COLS; cx++) {
-      bool free = true;
-      for (int dy = 0; dy < h && free; dy++)
-        for (int dx = 0; dx < w && free; dx++) free = !used[(cy + dy) * COLS + cx + dx];
-      if (!free) continue;
-      for (int dy = 0; dy < h; dy++)
-        for (int dx = 0; dx < w; dx++) used[(cy + dy) * COLS + cx + dx] = true;
-      return true;
-    }
-  }
-  return false;
+static bool fits(const bool* used, int x, int y, int w, int h) {
+  if (x < 0 || y < 0 || x + w > COLS || y + h > ROWS) return false;
+  for (int dy = 0; dy < h; dy++)
+    for (int dx = 0; dx < w; dx++)
+      if (used[(y + dy) * COLS + x + dx]) return false;
+  return true;
+}
+
+static void mark(bool* used, int x, int y, int w, int h) {
+  for (int dy = 0; dy < h; dy++)
+    for (int dx = 0; dx < w; dx++) used[(y + dy) * COLS + x + dx] = true;
 }
 ```
 
@@ -539,19 +632,40 @@ In `buildPage` die Schleife
 ersetzen durch
 
 ```cpp
+  // Erst Elemente mit x/y (vom Modul), dann der Rest zeilenweise von oben links (alte Layouts, Testwerkzeug)
+  JsonArray arr = doc.as<JsonArray>();
+  const int count = arr.size();
+  std::vector<int> px(count, -1), py(count, -1), pw(count, 1), ph(count, 1);
   bool used[COLS * ROWS] = {};
+  for (int k = 0; k < count; k++) {
+    JsonObject o = arr[k];
+    if (!parseSize(o["s"] | "", pw[k], ph[k])) pw[k] = ph[k] = 1;
+    if (o["x"].is<int>() && o["y"].is<int>() && fits(used, o["x"], o["y"], pw[k], ph[k])) {
+      px[k] = o["x"];
+      py[k] = o["y"];
+      mark(used, px[k], py[k], pw[k], ph[k]);
+    }
+  }
+  for (int k = 0; k < count; k++) {
+    for (int p = 0; px[k] < 0 && p < COLS * ROWS; p++) {
+      if (fits(used, p % COLS, p / COLS, pw[k], ph[k])) {
+        px[k] = p % COLS;
+        py[k] = p / COLS;
+        mark(used, px[k], py[k], pw[k], ph[k]);
+      }
+    }
+  }
   int i = 0;
-  for (JsonObject o : doc.as<JsonArray>()) {
-    int w, h, cx, cy;
-    if (!parseSize(o["s"] | "", w, h)) w = h = 1;
-    if (!place(used, w, h, cx, cy)) {
+  for (int k = 0; k < count; k++) {
+    JsonObject o = arr[k];
+    if (px[k] < 0) {
       Serial.printf("Seite %d: %s passt nicht, verworfen\n", n, o["k"] | "?");
       continue;
     }
     Item* it = new Item();
     it->key = o["k"] | "";
-    int x = GAP + cx * (TW + GAP), y = GAP + cy * (TH + GAP);
-    int W = w * TW + (w - 1) * GAP, H = h * TH + (h - 1) * GAP;
+    int x = GAP + px[k] * (TW + GAP), y = GAP + py[k] * (TH + GAP);
+    int W = pw[k] * TW + (pw[k] - 1) * GAP, H = ph[k] * TH + (ph[k] - 1) * GAP;
     if (strcmp(o["t"] | "", "btn") == 0)      createButton(tabs[n], it, x, y, W, H, o);
     else if (strcmp(o["t"] | "", "dim") == 0) createDimmer(tabs[n], it, x, y, W, H, o);
     else                                      createTile(tabs[n], it, x, y, W, H, o);
@@ -592,7 +706,7 @@ elif mode == "sizes":
          {"t": "tile", "k": "s_klein", "l": "Rund 1x1", "u": "%", "d": 0, "v": "arc", "m": 100},
          {"t": "tile", "k": "s_neg", "l": "Negativ", "u": "W", "d": 0, "v": "bar", "m": 1000},
          {"t": "dim", "k": "s_dim", "l": "Dimmer breit", "s": "2x1"},
-         {"t": "btn", "k": "s_btn", "l": "Button 2x1", "s": "2x1"}],
+         {"t": "btn", "k": "s_btn", "l": "Button fest", "s": "2x1", "x": 2, "y": 2}],
         [{"t": "tile", "k": "s_pv", "l": "PV gross", "u": "W", "d": 0, "s": "4x2"},
          {"t": "btn", "k": "s_btn", "l": "Button 4x1", "s": "4x1"}],
         [{"t": "tile", "k": "s_soc", "l": "Ganze Seite", "u": "%", "d": 0, "v": "arc", "m": 100, "s": "4x3"},
@@ -618,7 +732,7 @@ oder 5 Minuten auf den Timer warten.
 - [ ] **Step 3: Sichtpruefung mit dem Nutzer**
 
 Erwartet: Seite Start: Akku-Bogen 2x2 bei 68 %, PV-Balken 2x1 bei etwa einem Drittel, "Rund 1x1" voller Bogen
-(130 > 100), "Negativ" leerer Balken, Dimmer und Button je 2x1 in Zeile 3. Seite "Größe" (Reitername mit Umlaut):
+(130 > 100), "Negativ" leerer Balken, Dimmer 2x1 links und "Button fest" 2x1 rechts in Zeile 3 (feste Position, obwohl er zuletzt in der Liste steht). Seite "Größe" (Reitername mit Umlaut):
 PV in 48-px-Schrift ueber 4x2, Button 4x1. Seite Voll: ein Bogen ueber die ganze Seite, "darf nicht erscheinen" fehlt. Wischen ueber Bogen und
 Balken wechselt die Seite.
 
