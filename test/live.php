@@ -30,6 +30,26 @@ function GetValueFormatted($id) { global $vars; return $vars[$id][4]; }
 function SetValue($id, $v) { global $vars; $vars[$id][0] = $v; }
 function RequestAction($id, $v) { global $requested; $requested[] = [$id, $v]; }
 function IPS_RunScriptEx($id, $p) { global $ran; $ran[] = [$id, $p]; }
+function IPS_GetName($id) { return "Var$id"; }
+
+// Archiv: $archiveIds leer = kein Archiv; $archive[var] = [Typ, Stufe => [[TimeStamp, Avg, Duration], ...]]
+$archiveIds = [77];
+$archive = [];
+function IPS_GetInstanceListByModuleID($g) { global $archiveIds; assert($g === '{43192F0B-135B-4CE7-A0A7-1475603F3060}'); return $archiveIds; }
+function AC_GetLoggingStatus($a, $v) { global $archive; return isset($archive[$v]); }
+function AC_GetAggregationType($a, $v) { global $archive; return $archive[$v][0]; }
+function AC_GetAggregatedValues($a, $v, $level, $start, $end, $limit)
+{
+    global $archive;
+    assert($a === 77 && $limit === 0);
+    $out = [];
+    foreach ($archive[$v][$level] ?? [] as [$ts, $avg, $dur]) {
+        if ($ts >= $start && $ts <= $end) {
+            $out[] = ['TimeStamp' => $ts, 'Avg' => $avg, 'Duration' => $dur, 'Min' => 0, 'Max' => 0];
+        }
+    }
+    return array_reverse($out);       // neueste zuerst wie Symcon
+}
 
 class IPSModule
 {
@@ -45,7 +65,8 @@ class IPSModule
     protected function ReadAttributeString($n) { return $this->attrs[$n]; }
     protected function WriteAttributeString($n, $v) { $this->attrs[$n] = $v; }
     protected function RegisterTimer($n, $i, $s) {}
-    protected function SetTimerInterval($n, $i) { $this->interval = $i; }
+    public $timers = [];
+    protected function SetTimerInterval($n, $i) { $this->timers[$n] = $i; if ($n === 'Republish') { $this->interval = $i; } }
     protected function SetReceiveDataFilter($f) { $this->filter = $f; }
     protected function RegisterMessage($id, $m) { $this->messages[$id] = true; }
     protected function UnregisterMessage($id, $m) { unset($this->messages[$id]); }
@@ -269,7 +290,7 @@ assert(str_contains($sent[6][0], '/state/'));
 $p->props['Pages'] = json_encode([['Name' => 'Start'], ['Name' => 'Energie'], ['Name' => ' '], ['Name' => 'Energie']]);
 $p->props['Tiles'] = json_encode([
     ['Key' => 'wb', 'VariableID' => 1, 'Factor' => 1, 'Page' => 'Energie', 'Title' => 'Wallbox', 'Unit' => 'kW', 'Decimals' => 2,
-        'Colors' => 'Laedt=gruen; Fehler=ff0000;kaputt;x=lila;=rot'],
+        'Colors' => 'Laedt=gruen; Fehler=ff0000;kaputt;x=pink;=rot'],
     ['Key' => 'wb', 'VariableID' => 2, 'Factor' => 1, 'Page' => 'Start', 'Title' => 'Falsch', 'Unit' => 'X', 'Decimals' => 0, 'Colors' => ''],
     // Bearbeitete Standardzeile mit leeren Feldern: Standardwerte
     ['Key' => 'pv_power', 'VariableID' => 1, 'Factor' => 1, 'Page' => '', 'Title' => '', 'Unit' => '', 'Decimals' => 0, 'Colors' => ''],
@@ -296,7 +317,7 @@ $p->props['Buttons'] = '[]';
 $p->PublishAll();
 $sent = layouts($p);
 $p->sent = [];
-assert(str_contains($sent[2][1], '"k":"wallbox_power","l":"Wallbox","u":"kW","d":2'), $sent[2][1]);
+assert(str_contains($sent[2][1], '"k":"wallbox_power","l":"Wallbox","u":"kW","d":0'), $sent[2][1]);
 assert(str_contains($sent[1][1], '"k":"pv_power","l":"PV","u":"W","d":0'), $sent[1][1]);
 
 // Grenzen: 5 Seiten, 12 Eintraege, Werte der ueberzaehligen Zeilen laufen weiter
@@ -507,5 +528,89 @@ $f->PublishAll();
 $l = json_decode(array_column(layouts($f), 1, 0)['colorkit/layout/0'], true);
 $f->sent = [];
 assert($l[0]['s'] === '4x3');
+
+// ===== Diagramme =====
+$c = new ColorKitDashboard();
+$c->Create();
+$c->active = true;
+assert($c->props['Charts'] === '[]');
+$c->props['Buttons'] = '[]';
+$c->props['Tiles'] = '[]';
+$c->ApplyChanges();
+assert($c->timers['Charts'] === 0);
+$c->sent = [];
+function charts(ColorKitDashboard $m): array
+{
+    $out = [];
+    foreach ($m->sent as $s) {
+        if (str_contains($s['Topic'], '/chart/')) {
+            $out[substr($s['Topic'], strlen('colorkit/chart/'))] = json_decode(mb_convert_encoding($s['Payload'], 'ISO-8859-1', 'UTF-8'), true);
+        }
+    }
+    return $out;
+}
+$day = mktime(0, 0, 0);
+$y = (int) date('Y');
+$mo = (int) date('n');
+$d = (int) date('j');
+$vars[970] = [0.0, VARIABLETYPE_FLOAT, 0, 0, ''];   // Zaehler kWh
+$vars[971] = [0.0, VARIABLETYPE_FLOAT, 0, 0, ''];   // Leistung kW
+$vars[972] = [0.0, VARIABLETYPE_FLOAT, 0, 0, ''];   // nicht archiviert
+$archive[970] = [1, 5 => [[$day, 0.1, 300], [$day + 300, 0.2, 300], [$day + 600, 0.3, 300], [$day + 900, 0.25, 300], [$day - 300, 9, 300]],
+    1 => [[mktime(0, 0, 0, $mo, $d - 2), 7, 86400], [$day, 5, 3600]]];
+$archive[971] = [0, 5 => [[$day, 2, 300], [$day + 300, 4, 300]],
+    3 => [[mktime(0, 0, 0, $mo, 1), 2, 36000], [mktime(0, 0, 0, $mo - 11, 1), 1, 7200]]];
+$c->props['Charts'] = json_encode([
+    ['Key' => 'heute', 'Page' => 'Start', 'Type' => 'Heute', 'Title' => 'PV heute', 'Size' => '1x1', 'Decimals' => '', 'Series' => 'PV', 'Color' => 'gelb', 'VariableID' => 970, 'Factor' => 1],
+    ['Key' => 'heute', 'Page' => 'Start', 'Type' => '', 'Title' => 'falsch', 'Size' => '', 'Decimals' => '3', 'Series' => '', 'Color' => '', 'VariableID' => 971, 'Factor' => 2],
+    ['Key' => 'heute', 'Series' => 'ohne', 'VariableID' => 972, 'Factor' => 1],
+    ['Key' => 'heute', 'Series' => 'weg', 'VariableID' => 99999, 'Factor' => 1],
+    ['Key' => 'woche', 'Page' => '-', 'Type' => '7 Tage', 'Decimals' => '0', 'Color' => 'aa00BB', 'VariableID' => 970, 'Factor' => 1],
+    ['Key' => 'zwei', 'Page' => '-', 'Type' => '14 Tage', 'Unit' => 'Wh', 'VariableID' => 970, 'Factor' => 1000],
+    ['Key' => 'jahr', 'Page' => '-', 'Type' => '12 Monate', 'Color' => 'kaputt', 'VariableID' => 971, 'Factor' => 1],
+    ['Key' => '', 'VariableID' => 970, 'Factor' => 1],
+]);
+$c->ApplyChanges();
+assert($c->timers['Charts'] === 300000);
+$l = json_decode(array_column(layouts($c), 1, 0)['colorkit/layout/0'], true);
+assert($l == [['t' => 'chart', 'k' => 'heute', 'l' => 'PV heute', 's' => '4x3', 'x' => 0, 'y' => 0]]);
+$ch = charts($c);
+$c->sent = [];
+assert(array_keys($ch) === ['heute', 'woche', 'zwei', 'jahr']);
+
+$h = $ch['heute'];
+assert($h['t'] === 'line' && $h['u'] === 'kW' && $h['d'] === 1 && !isset($h['x']));
+assert(array_column($h['s'], 'n') === ['PV', 'Var971', 'ohne']);
+assert(array_column($h['s'], 'c') === ['FFB300', '1565C0', 'C62828']);
+$pv = $h['s'][0]['v'];
+assert(count($pv) === intdiv(time() - $day, 900) + 1);
+assert($pv[0] === 2.4 && $pv[1] === 1.0 && ($pv[2] ?? null) === null, json_encode($pv));
+assert($h['s'][1]['v'][0] === 6.0);           // Mittel 3 kW x Faktor 2, Stellen der ersten Zeile
+assert($h['s'][2]['v'] === []);
+
+$w = $ch['woche'];
+$names = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+assert($w['t'] === 'bar' && $w['u'] === 'kWh' && $w['d'] === 0);
+assert(count($w['x']) === 7 && $w['x'][6] === $names[date('w')] && $w['x'][0] === $names[date('w', mktime(0, 0, 0, $mo, $d - 6))]);
+assert($w['s'][0]['c'] === 'AA00BB' && $w['s'][0]['n'] === 'Var970');
+assert($w['s'][0]['v'] === [null, null, null, null, 7.0, null, 5.0], json_encode($w['s'][0]['v']));
+
+$z = $ch['zwei'];
+assert($z['u'] === 'Wh' && count($z['x']) === 14 && $z['x'][13] === date('d.m') && $z['x'][0] === date('d.m', mktime(0, 0, 0, $mo, $d - 13)));
+assert($z['s'][0]['v'][13] === 5000.0);
+
+$j = $ch['jahr'];
+$months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+assert(count($j['x']) === 12 && $j['x'][11] === $months[$mo - 1] && $j['x'][0] === $months[(int) date('n', mktime(0, 0, 0, $mo - 11, 1)) - 1]);
+assert($j['s'][0]['c'] === 'FFB300');         // ungueltige Farbe: Farbfolge
+assert($j['s'][0]['v'][11] === 20.0 && $j['s'][0]['v'][0] === 2.0 && $j['s'][0]['v'][5] === null);
+
+// Ohne Archiv: leere Reihen, kein Absturz
+$archiveIds = [];
+$c->PublishCharts();
+$ch = charts($c);
+$c->sent = [];
+assert($ch['heute']['s'][0]['v'] === [] && $ch['jahr']['s'][0]['v'] === []);
+$archiveIds = [77];
 
 echo "OK\n";

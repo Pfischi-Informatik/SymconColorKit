@@ -97,6 +97,55 @@
         },
         {
             "type": "ExpansionPanel",
+            "caption": "Diagramme",
+            "items": [
+                {
+                    "type": "List",
+                    "name": "Charts",
+                    "caption": "Diagramme aus dem Archiv, alle 5 Minuten neu (Variable muss archiviert sein, kWh-Zaehler als Zaehler. Gleicher Key = weitere Reihe, die erste Zeile legt Seite, Typ, Titel, Einheit, Stellen und Groesse fest)",
+                    "rowCount": 5,
+                    "add": true,
+                    "delete": true,
+                    "changeOrder": true,
+                    "columns": [
+                        { "name": "Key", "caption": "Key", "width": "150px", "add": "", "edit": { "type": "ValidationTextBox", "validate": "^[^#+/]*$" } },
+                        { "name": "Page", "caption": "Seite", "width": "110px", "add": "Start", "edit": { "type": "ValidationTextBox" } },
+                        {
+                            "name": "Type", "caption": "Typ", "width": "120px", "add": "Heute",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "Heute (Linie)", "value": "Heute" }, { "caption": "7 Tage", "value": "7 Tage" },
+                                { "caption": "14 Tage", "value": "14 Tage" }, { "caption": "12 Monate", "value": "12 Monate" } ] }
+                        },
+                        { "name": "Title", "caption": "Titel", "width": "120px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Unit", "caption": "Einheit", "width": "70px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Decimals", "caption": "Stellen", "width": "70px", "add": "", "edit": { "type": "ValidationTextBox", "validate": "^[0-3]?$" } },
+                        { "name": "Series", "caption": "Reihe", "width": "110px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "Color", "caption": "Farbe", "width": "90px", "add": "", "edit": { "type": "ValidationTextBox" } },
+                        { "name": "VariableID", "caption": "Variable", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } },
+                        { "name": "Factor", "caption": "Faktor", "width": "120px", "add": 1, "edit": { "type": "NumberSpinner", "digits": 4 } },
+                        {
+                            "name": "Size", "caption": "Groesse", "width": "90px", "add": "4x3",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "2x2", "value": "2x2" }, { "caption": "4x2", "value": "4x2" }, { "caption": "4x3 (ganze Seite)", "value": "4x3" } ] }
+                        },
+                        {
+                            "name": "Column", "caption": "Spalte", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" }, { "caption": "4", "value": "4" } ] }
+                        },
+                        {
+                            "name": "Row", "caption": "Zeile", "width": "80px", "add": "",
+                            "edit": { "type": "Select", "options": [
+                                { "caption": "auto", "value": "" }, { "caption": "1", "value": "1" }, { "caption": "2", "value": "2" },
+                                { "caption": "3", "value": "3" } ] }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
             "caption": "Buttons",
             "items": [
                 {

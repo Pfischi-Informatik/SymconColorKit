@@ -11,11 +11,13 @@ declare(strict_types=1);
  *   <Basis>/state/<key>  Symcon -> Display: Kachelwerte, Button-Zustaende (retained)
  *   <Basis>/cmd/<key>    Display -> Symcon: Button getippt, Dimmer 0-100
  *   <Basis>/status       Display -> Symcon: online | offline (retained, LWT)
+ *   <Basis>/chart/<key>  Symcon -> Display: Diagrammdaten aus dem Archiv (retained)
  */
 class ColorKitDashboard extends IPSModule
 {
     private const MQTT_SERVER = '{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}';
     private const TX = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
+    private const ARCHIVE = '{43192F0B-135B-4CE7-A0A7-1475603F3060}';
 
     private const DEFAULT_TILES = [
         ['Key' => 'pv_power', 'VariableID' => 0, 'Factor' => 1, 'Formatted' => false, 'Operation' => 'Summe'],
@@ -52,7 +54,7 @@ class ColorKitDashboard extends IPSModule
         'pv_power'      => ['PV', 'W', 0, ''],
         'house_power'   => ['Haus', 'W', 0, ''],
         'grid_power'    => ['Netz', 'W', 0, ''],
-        'wallbox_power' => ['Wallbox', 'kW', 2, ''],
+        'wallbox_power' => ['Wallbox', 'kW', 0, ''],
         'hp_mode'       => ['WP Modus', '', -1, 'Standby=orange;Aus=rot;Ein=gruen'],
         'hp_flow'       => ['WP Vorlauf', '°C', 1, ''],
         'room_temp'     => ['Raum', '°C', 1, ''],
@@ -65,7 +67,12 @@ class ColorKitDashboard extends IPSModule
 
     private const BUTTON_LABELS = ['wallbox_pv' => 'Wallbox PV', 'wallbox_fast' => 'Sofortladen', 'dhw_boost' => 'WW Boost'];
 
-    private const COLOR_NAMES = ['rot' => 'C62828', 'orange' => 'EF6C00', 'gruen' => '2E7D32', 'blau' => '1565C0', 'grau' => '546E7A'];
+    private const COLOR_NAMES = ['gelb' => 'FFB300', 'blau' => '1565C0', 'rot' => 'C62828', 'gruen' => '2E7D32', 'orange' => 'EF6C00',
+        'lila' => '6A1B9A', 'grau' => '546E7A'];
+    // Typ => [Archivstufe, Anzahl]; Heute: 5-Minuten-Werte, zu 96 Vierteln zusammengefasst
+    private const CHART_TYPES = ['Heute' => [5, 96], '7 Tage' => [1, 7], '14 Tage' => [1, 14], '12 Monate' => [3, 12]];
+    private const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    private const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
     public function Create(): void
     {
@@ -78,10 +85,12 @@ class ColorKitDashboard extends IPSModule
         $this->RegisterPropertyString('Tiles', json_encode(self::DEFAULT_TILES));
         $this->RegisterPropertyString('Buttons', json_encode(self::DEFAULT_BUTTONS));
         $this->RegisterPropertyString('Pages', json_encode([['Name' => 'Start']]));
+        $this->RegisterPropertyString('Charts', '[]');
 
         $this->RegisterAttributeString('RegisteredVariables', '[]');
 
         $this->RegisterTimer('Republish', 0, 'CKD_PublishAll($_IPS[\'TARGET\']);');
+        $this->RegisterTimer('Charts', 0, 'CKD_PublishCharts($_IPS[\'TARGET\']);');
     }
 
     public function ApplyChanges(): void
@@ -106,6 +115,7 @@ class ColorKitDashboard extends IPSModule
         $this->WriteAttributeString('RegisteredVariables', json_encode($ids));
 
         $this->SetTimerInterval('Republish', max(0, $this->ReadPropertyInteger('RepublishInterval')) * 1000);
+        $this->SetTimerInterval('Charts', count($this->chartGroups()) > 0 ? 300000 : 0);
 
         if ($this->HasActiveParent()) {
             $this->PublishAll();
@@ -157,6 +167,130 @@ class ColorKitDashboard extends IPSModule
         foreach ($this->rows('Buttons') as $button) {
             $this->publishButton($button, true);
         }
+        $this->PublishCharts();
+    }
+
+    // ==== Diagramme ====
+
+    public function PublishCharts(): void
+    {
+        $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION;
+        foreach ($this->chartGroups() as $key => $group) {
+            $payload = json_encode($this->chartData($group), $flags);
+            if (strlen($payload) > self::MAX_LAYOUT_BYTES) {
+                $this->SendDebug('Diagramme', $key . ' ist zu gross und wird nicht gesendet', 0);
+                continue;
+            }
+            $this->sendRetained($this->baseTopic() . '/chart/' . $key, $payload);
+        }
+    }
+
+    // Zeilen mit gleichem Key bilden ein Diagramm
+    private function chartGroups(): array
+    {
+        $groups = [];
+        foreach ($this->rows('Charts') as $row) {
+            if (($row['Key'] ?? '') !== '') {
+                $groups[$row['Key']][] = $row;
+            }
+        }
+        return $groups;
+    }
+
+    private function chartType(array $row): string
+    {
+        $type = (string) ($row['Type'] ?? '');
+        return isset(self::CHART_TYPES[$type]) ? $type : 'Heute';
+    }
+
+    private function chartData(array $group): array
+    {
+        $first = $group[0];
+        $type = $this->chartType($first);
+        $decimals = (string) ($first['Decimals'] ?? '');
+        $decimals = $decimals === '' ? 1 : max(0, min(3, (int) $decimals));
+        $data = ['t' => $type === 'Heute' ? 'line' : 'bar', 'u' => ($first['Unit'] ?? '') ?: ($type === 'Heute' ? 'kW' : 'kWh'), 'd' => $decimals];
+        [$level, $count] = self::CHART_TYPES[$type];
+        // Beginn jedes Zeitraums; der letzte enthaelt jetzt
+        $y = (int) date('Y');
+        $m = (int) date('n');
+        $d = (int) date('j');
+        $starts = [];
+        for ($i = 0; $i < $count; $i++) {
+            $starts[] = match ($type) {
+                'Heute'     => mktime(0, 0, 0, $m, $d) + $i * 900, // ponytail: Umstellungstag hat 92/100 Viertel, Raster bleibt 96
+                '12 Monate' => mktime(0, 0, 0, $m - $count + 1 + $i, 1, $y),
+                default     => mktime(0, 0, 0, $m, $d - $count + 1 + $i, $y),
+            };
+        }
+        if ($type !== 'Heute') {
+            $data['x'] = array_map(fn ($t) => match ($type) {
+                '7 Tage'  => self::WEEKDAYS[(int) date('w', $t)],
+                '14 Tage' => date('d.m', $t),
+                default   => self::MONTHS[(int) date('n', $t) - 1],
+            }, $starts);
+        }
+        $archive = IPS_GetInstanceListByModuleID(self::ARCHIVE)[0] ?? 0;
+        if ($archive === 0) {
+            $this->SendDebug('Diagramme', 'Kein Archiv gefunden', 0);
+        }
+        $data['s'] = [];
+        foreach ($group as $row) {
+            $id = (int) ($row['VariableID'] ?? 0);
+            if (!IPS_VariableExists($id)) {
+                continue;
+            }
+            $index = count($data['s']);
+            $palette = array_values(array_diff_key(self::COLOR_NAMES, ['grau' => 0]));
+            $data['s'][] = [
+                'n' => ($row['Series'] ?? '') ?: IPS_GetName($id),
+                'c' => $this->colorHex((string) ($row['Color'] ?? '')) ?? $palette[$index % count($palette)],
+                'v' => $archive > 0 ? $this->series($archive, $id, $level, $starts, (float) ($row['Factor'] ?? 1), $decimals) : [],
+            ];
+        }
+        return $data;
+    }
+
+    // Werte je Zeitraum; Zaehler: Avg ist der Zuwachs, sonst der Mittelwert
+    private function series(int $archive, int $id, int $level, array $starts, float $factor, int $decimals): array
+    {
+        if (!AC_GetLoggingStatus($archive, $id)) {
+            $this->SendDebug('Diagramme', 'Variable ' . $id . ' wird nicht archiviert', 0);
+            return [];
+        }
+        $counter = AC_GetAggregationType($archive, $id) === 1;
+        $now = time();
+        $rows = @AC_GetAggregatedValues($archive, $id, $level, $starts[0], $now, 0);
+        if (!is_array($rows)) {
+            $this->SendDebug('Diagramme', 'Archivabfrage fuer ' . $id . ' fehlgeschlagen', 0);
+            return [];
+        }
+        $sum = [];
+        $n = [];
+        foreach ($rows as $r) {
+            // Zeitraum mit dem Anfang <= TimeStamp suchen
+            for ($i = count($starts) - 1; $i >= 0 && $starts[$i] > $r['TimeStamp']; $i--);
+            if ($i < 0) {
+                continue;
+            }
+            $value = $level === 5 || $counter ? $r['Avg'] : $r['Avg'] * $r['Duration'] / 3600; // Mittel x Stunden = Energie
+            $sum[$i] = ($sum[$i] ?? 0) + $value;
+            $n[$i] = ($n[$i] ?? 0) + 1;
+        }
+        $last = 0;
+        while ($last + 1 < count($starts) && $starts[$last + 1] <= $now) {
+            $last++;
+        }
+        $values = [];
+        for ($i = 0; $i <= $last; $i++) {
+            if (!isset($sum[$i])) {
+                $values[] = null;
+                continue;
+            }
+            $value = $level !== 5 ? $sum[$i] : ($counter ? $sum[$i] * 4 : $sum[$i] / $n[$i]); // Viertel: kWh x 4 = kW
+            $values[] = round($value * $factor, $decimals) + 0.0;
+        }
+        return $values;
     }
 
     private function publishLayouts(): void
@@ -221,6 +355,9 @@ class ColorKitDashboard extends IPSModule
                 $this->addItem($entries, $pages, $row, ['t' => $type, 'k' => $row['Key'], 'l' => $label]);
             }
         }
+        foreach ($this->chartGroups() as $key => $group) {
+            $this->addItem($entries, $pages, $group[0], ['t' => 'chart', 'k' => (string) $key, 'l' => ($group[0]['Title'] ?? '') ?: (string) $key]);
+        }
         $layouts = [];
         foreach ($entries as $index => $list) {
             $layouts[$index] = $this->placeAll($list, $pages[$index]);
@@ -268,8 +405,8 @@ class ColorKitDashboard extends IPSModule
             }
         }
         $size = strtolower(str_replace(' ', '', (string) ($row['Size'] ?? '')));
-        if ($item['t'] === 'flow' && ($size === '' || $size === '1x1')) {
-            $size = '4x3';              // Formular-Standard 1x1 waere fuer den Fluss zu klein
+        if (($item['t'] === 'flow' || $item['t'] === 'chart') && ($size === '' || $size === '1x1')) {
+            $size = '4x3';              // Formular-Standard 1x1 waere fuer Fluss und Diagramm zu klein
         }
         if ($size === '') {
             $size = '1x1';
@@ -365,8 +502,7 @@ class ColorKitDashboard extends IPSModule
                 continue;
             }
             $parts = array_map('trim', explode('=', $rule, 2));
-            $color = strtolower($parts[1] ?? '');
-            $hex = self::COLOR_NAMES[$color] ?? (preg_match('/^[0-9a-f]{6}$/', $color) ? strtoupper($color) : null);
+            $hex = $this->colorHex($parts[1] ?? '');
             if ($parts[0] === '' || $hex === null) {
                 $this->SendDebug('Seiten', 'Ungueltige Farbregel: ' . $rule, 0);
                 continue;
@@ -374,6 +510,12 @@ class ColorKitDashboard extends IPSModule
             $colors[] = [$parts[0], $hex];
         }
         return $colors;
+    }
+
+    private function colorHex(string $color): ?string
+    {
+        $color = strtolower(trim($color));
+        return self::COLOR_NAMES[$color] ?? (preg_match('/^[0-9a-f]{6}$/', $color) ? strtoupper($color) : null);
     }
 
     // Zeilen mit gleichem Key bilden eine Kachel

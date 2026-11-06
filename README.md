@@ -23,6 +23,7 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
 | `colorkit/status` | Display -> Symcon | `online`/`offline` (retained, LWT). Bei `online` sendet Symcon sofort alle Werte |
 | `colorkit/pages` | Symcon -> Display | Seitennamen als JSON (retained) |
 | `colorkit/layout/<n>` | Symcon -> Display | Inhalt der Seite n als JSON (retained), leer = keine Seite |
+| `colorkit/chart/<key>` | Symcon -> Display | Diagrammdaten als JSON (retained), alle 5 Minuten |
 | `colorkit/diag` | Display -> Symcon | WLAN-Diagnose nach jedem Verbinden (retained), steht im Debug-Fenster unter RX |
 
 ## Konfiguration
@@ -52,8 +53,16 @@ Basis-Topic ist konfigurierbar, Standard `colorkit`.
   - = Entladen), `wallbox_power` und `hp_power`, sobald der Key in der Liste steht. Werte, die nur der Fluss braucht,
   auf Seite `-` legen. Falsches Vorzeichen mit Faktor `-1` drehen. Der Akku-Knoten zeigt `battery_soc` mit an.
   Titel, Einheit und Farben stellen Sie je Zeile ein, leer bedeutet Standardwert. Farben: `Text=Farbe;Text=Farbe` mit
-  rot, orange, gruen, blau, grau oder 6 Hex-Stellen. `battery_soc` ist eine normale Kachel.
-- Nach dem Update des Moduls den Symcon-Dienst neu starten, damit die neue Eigenschaft `Pages` angelegt wird.
+  gelb, rot, orange, gruen, blau, lila, grau oder 6 Hex-Stellen. `battery_soc` ist eine normale Kachel.
+- **Stellen**: Nachkommastellen je Kachel, gilt auch im Energiefluss. Leer = Standard des Keys (`wallbox_power` 0,
+  Temperaturen 1, Leistungen in W 0), `-1` = Wert unveraendert.
+- **Diagramme**: eigene Liste. Typ `Heute` zeigt eine Linie in 15-Minuten-Schritten von 0 Uhr bis jetzt, `7 Tage`,
+  `14 Tage` und `12 Monate` Saeulen je Tag bzw. Monat. Die Variable muss archiviert sein. Am besten einen kWh-Zaehler
+  nehmen und im Archiv als **Zaehler** einstellen: dann zeigen die Saeulen den Verbrauch je Zeitraum in kWh und die
+  Linie die Leistung in kW. Eine normale Leistungsvariable geht auch (Linie = Mittelwert, Saeulen = Mittelwert x
+  Stunden). Gleicher Key in mehreren Zeilen = mehrere Reihen in einem Diagramm, Farben wie oben oder automatisch.
+  Stellen 0 bis 3 (leer = 1), Faktor z.B. `0.001` fuer Wh -> kWh. Groesse leer oder `1x1` wird `4x3`.
+- Nach dem Update des Moduls den Symcon-Dienst neu starten, damit neue Eigenschaften (zuletzt `Charts`) angelegt werden.
 
 Die vorbelegten Keys passen zur Firmware; nur die Variablen muessen noch zugeordnet werden.
 
@@ -64,6 +73,7 @@ Seitennamen hoechstens etwa 10 Zeichen, sonst passen 5 Reiter nicht in die Leist
 
 ```php
 CKD_PublishAll(int $InstanzID); // alle Werte jetzt senden, auch als Button im Formular
+CKD_PublishCharts(int $InstanzID); // nur die Diagramme neu berechnen und senden
 ```
 
 RX/TX stehen im Debug-Fenster der Instanz.
