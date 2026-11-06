@@ -42,7 +42,9 @@ class ColorKitDashboard extends IPSModule
     private const SIZES = ['1x1' => [1, 1], '2x1' => [2, 1], '2x2' => [2, 2], '4x1' => [4, 1], '4x2' => [4, 2], '4x3' => [4, 3]];
     private const DISPLAYS = ['Rundanzeige' => 'arc', 'Balken' => 'bar'];
     // Key => [Darstellung, Maximum]
-    private const DISPLAY_DEFAULTS = ['battery_soc' => ['Rundanzeige', 100]];
+    private const DISPLAY_DEFAULTS = ['battery_soc' => ['Rundanzeige', 100], 'energy_flow' => ['Energiefluss', 100]];
+    // Feste Knoten des Energieflusses, in dieser Reihenfolge
+    private const FLOW_KEYS = ['pv_power', 'grid_power', 'house_power', 'battery_power', 'wallbox_power', 'hp_power'];
     private const MAX_LAYOUT_BYTES = 4096;
 
     // Key => [Titel, Einheit, Nachkommastellen, Farbregeln]
@@ -56,6 +58,9 @@ class ColorKitDashboard extends IPSModule
         'room_temp'     => ['Raum', '°C', 1, ''],
         'outdoor_temp'  => ['Aussen', '°C', 1, ''],
         'battery_soc'   => ['Akku', '%', 0, ''],
+        'battery_power' => ['Akku', 'W', 0, ''],
+        'hp_power'      => ['WP', 'W', 0, ''],
+        'energy_flow'   => ['Energiefluss', '', -1, ''],
     ];
 
     private const BUTTON_LABELS = ['wallbox_pv' => 'Wallbox PV', 'wallbox_fast' => 'Sofortladen', 'dhw_boost' => 'WW Boost'];
@@ -192,21 +197,17 @@ class ColorKitDashboard extends IPSModule
             $key = (string) $key;
             $row = $group[0];
             $default = self::TILE_DEFAULTS[$key] ?? [$key, '', -1, ''];
-            $decimals = (string) ($row['Decimals'] ?? '');
-            $item = [
-                't' => 'tile',
-                'k' => $key,
-                'l' => ($row['Title'] ?? '') ?: $default[0],
-                'u' => ($row['Unit'] ?? '') ?: $default[1],
-                'd' => $decimals === '' ? $default[2] : (int) $decimals,
-            ];
+            [$title, $unit, $digits] = $this->meta($key, $row);
+            $item = ['t' => 'tile', 'k' => $key, 'l' => $title, 'u' => $unit, 'd' => $digits];
             $colors = $this->parseColors(($row['Colors'] ?? '') ?: $default[3]);
             if (count($colors) > 0) {
                 $item['c'] = $colors;
             }
             $displayDefault = self::DISPLAY_DEFAULTS[$key] ?? ['Zahl', 100];
             $display = ((string) ($row['Display'] ?? '')) ?: $displayDefault[0];
-            if (isset(self::DISPLAYS[$display])) {
+            if ($display === 'Energiefluss') {
+                $item = ['t' => 'flow', 'k' => $key, 'l' => $title, 'n' => $this->flowNodes()];
+            } elseif (isset(self::DISPLAYS[$display])) {
                 $max = trim((string) ($row['Max'] ?? ''));
                 $item['v'] = self::DISPLAYS[$display];
                 $item['m'] = is_numeric($max) && $max + 0 > 0 ? $max + 0 : $displayDefault[1];
@@ -225,6 +226,31 @@ class ColorKitDashboard extends IPSModule
             $layouts[$index] = $this->placeAll($list, $pages[$index]);
         }
         return $layouts;
+    }
+
+    // Titel, Einheit, Stellen einer Kachelzeile mit Standardwerten je Key
+    private function meta(string $key, array $row): array
+    {
+        $default = self::TILE_DEFAULTS[$key] ?? [$key, '', -1, ''];
+        $decimals = (string) ($row['Decimals'] ?? '');
+        return [
+            ($row['Title'] ?? '') ?: $default[0],
+            ($row['Unit'] ?? '') ?: $default[1],
+            $decimals === '' ? $default[2] : (int) $decimals,
+        ];
+    }
+
+    // Knoten fuer den Energiefluss: jeder feste Key, der in der Kachelliste steht (auch auf Seite "-")
+    private function flowNodes(): array
+    {
+        $groups = $this->tileGroups();
+        $nodes = [];
+        foreach (self::FLOW_KEYS as $key) {
+            if (isset($groups[$key])) {
+                $nodes[] = array_merge([$key], $this->meta($key, $groups[$key][0]));
+            }
+        }
+        return $nodes;
     }
 
     // Zeile pruefen und mit Groesse und Wunschposition vormerken; platziert wird in placeAll()

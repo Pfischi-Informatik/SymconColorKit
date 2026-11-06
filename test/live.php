@@ -469,4 +469,36 @@ $g->PublishAll();
 $l = page0($g);
 assert(slots($l) === ['auto1' => [1, 0], 'fest' => [0, 0], 'fest2' => [2, 0], 'rand' => [0, 1], 'halb' => [3, 0], 'unten' => [2, 2]]);
 
+// ===== Energiefluss =====
+$f = new ColorKitDashboard();
+$f->Create();
+$f->active = true;
+$vars[960] = [-800, VARIABLETYPE_INTEGER, 0, 1, ''];
+$f->props['Pages'] = json_encode([['Name' => 'Start']]);
+$f->props['Buttons'] = '[]';
+$f->props['Tiles'] = json_encode([
+    ['Key' => 'pv_power', 'VariableID' => 960, 'Factor' => 1],
+    ['Key' => 'grid_power', 'VariableID' => 960, 'Factor' => 1, 'Page' => '-', 'Title' => 'Netz EVU'],
+    ['Key' => 'battery_power', 'VariableID' => 960, 'Factor' => 1, 'Page' => '-', 'Unit' => 'kW', 'Decimals' => '2'],
+    ['Key' => 'energy_flow', 'VariableID' => 0, 'Factor' => 1, 'Size' => '4x2'],
+    ['Key' => 'zweiter', 'VariableID' => 0, 'Factor' => 1, 'Display' => 'Energiefluss', 'Size' => '4x1'],
+]);
+$f->PublishAll();
+$s = array_column(layouts($f), 1, 0);
+$f->sent = [];
+$l = json_decode($s['colorkit/layout/0'], true);
+assert(count($l) === 2);                      // pv_power 1x1 und energy_flow 4x2; zweiter 4x1 passt nicht mehr
+assert($l[1] == ['t' => 'flow', 'k' => 'energy_flow', 'l' => 'Energiefluss', 's' => '4x2', 'x' => 0, 'y' => 1,
+    'n' => [['pv_power', 'PV', 'W', 0], ['grid_power', 'Netz EVU', 'W', 0], ['battery_power', 'Akku', 'kW', 2]]]);
+assert(!isset($s['colorkit/state/energy_flow']));
+assert($s['colorkit/state/grid_power'] === '-800');
+
+$f->props['Tiles'] = json_encode([
+    ['Key' => 'zweiter', 'VariableID' => 0, 'Factor' => 1, 'Display' => 'Energiefluss'],
+]);
+$f->PublishAll();
+$l = json_decode(array_column(layouts($f), 1, 0)['colorkit/layout/0'], true);
+$f->sent = [];
+assert($l[0]['t'] === 'flow' && $l[0]['n'] === [] && $l[0]['l'] === 'zweiter');
+
 echo "OK\n";
